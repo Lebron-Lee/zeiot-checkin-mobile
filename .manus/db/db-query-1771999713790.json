@@ -1,0 +1,70 @@
+{
+  "query": "SELECT * FROM event_config LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute SELECT * FROM event_config LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "configKey": "event_name",
+      "configValue": "中易物联集团2026开工盛典",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "2",
+      "configKey": "event_theme",
+      "configValue": "AI智启·同心聚力·焕新出发",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "3",
+      "configKey": "event_date",
+      "configValue": "2026-03-02",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "4",
+      "configKey": "event_time",
+      "configValue": "09:00",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "5",
+      "configKey": "event_location",
+      "configValue": "中易物联集团总部",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "6",
+      "configKey": "event_total_attendees",
+      "configValue": "25",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "7",
+      "configKey": "checkin_start_time",
+      "configValue": "08:30",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "8",
+      "configKey": "checkin_end_time",
+      "configValue": "09:30",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "9",
+      "configKey": "logo_grid_size",
+      "configValue": "25",
+      "updatedAt": "2026-02-25 00:45:00"
+    },
+    {
+      "id": "10",
+      "configKey": "bigscreen_url",
+      "configValue": "",
+      "updatedAt": "2026-02-25 00:45:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tconfigKey\tconfigValue\tupdatedAt\n1\tevent_name\t中易物联集团2026开工盛典\t2026-02-25 00:45:00\n2\tevent_theme\tAI智启·同心聚力·焕新出发\t2026-02-25 00:45:00\n3\tevent_date\t2026-03-02\t2026-02-25 00:45:00\n4\tevent_time\t09:00\t2026-02-25 00:45:00\n5\tevent_location\t中易物联集团总部\t2026-02-25 00:45:00\n6\tevent_total_attendees\t25\t2026-02-25 00:45:00\n7\tcheckin_start_time\t08:30\t2026-02-25 00:45:00\n8\tcheckin_end_time\t09:30\t2026-02-25 00:45:00\n9\tlogo_grid_size\t25\t2026-02-25 00:45:00\n10\tbigscreen_url\t\t2026-02-25 00:45:00\n",
+  "stderr": "",
+  "execution_time_ms": 1570
+}

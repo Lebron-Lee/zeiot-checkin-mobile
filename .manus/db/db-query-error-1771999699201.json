@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE event_config SET config_value = '2026-03-01' WHERE config_key = 'event_date';\nSELECT config_key, config_value FROM event_config WHERE config_key = 'event_date';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute UPDATE event_config SET config_value = '2026-03-01' WHERE config_key = 'event_date';\nSELECT config_key, config_value FROM event_config WHERE config_key = 'event_date';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'config_key' in 'where clause'"
+  ]
+}

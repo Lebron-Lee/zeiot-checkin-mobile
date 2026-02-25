@@ -1,0 +1,14 @@
+{
+  "query": "UPDATE event_config SET configValue = '2026-03-01' WHERE configKey = 'event_date';\nSELECT configKey, configValue FROM event_config WHERE configKey = 'event_date';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute UPDATE event_config SET configValue = '2026-03-01' WHERE configKey = 'event_date';\nSELECT configKey, configValue FROM event_config WHERE configKey = 'event_date';",
+  "rows": [
+    {
+      "configKey": "event_date",
+      "configValue": "2026-03-01"
+    }
+  ],
+  "messages": [],
+  "stdout": "configKey\tconfigValue\nevent_date\t2026-03-01\n",
+  "stderr": "",
+  "execution_time_ms": 1724
+}
