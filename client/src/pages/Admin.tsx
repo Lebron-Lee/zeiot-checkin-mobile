@@ -7,10 +7,15 @@ import { motion, AnimatePresence } from "framer-motion";
 
 type Tab = "overview" | "checkins" | "awards" | "lottery" | "wishes";
 
-const EMPLOYEES = [
+// 25人名单（根据文档，雷总/刘总/王总固定分到不同组）
+const FIXED_LEADERS = ["雷总", "刘总", "王总"];
+
+// 按文档人员预设（25人）
+const DEFAULT_MEMBERS = [
+  "雷总", "刘总", "王总",
   "张伟", "李娜", "王芳", "刘洋", "陈静", "杨磊", "赵敏", "黄强",
   "周婷", "吴杰", "徐慧", "孙浩", "马丽", "朱峰", "胡雪", "郭明",
-  "何丽", "高鹏", "林芳", "罗勇", "梁静", "宋涛", "唐敏", "韩磊", "冯丽",
+  "何丽", "高鹏", "林芳", "罗勇", "梁静",
 ];
 
 export default function Admin() {
@@ -22,13 +27,15 @@ export default function Admin() {
   const [generatedSpeech, setGeneratedSpeech] = useState("");
   const [lotteryCount, setLotteryCount] = useState(1);
   const [lotteryResult, setLotteryResult] = useState<string[]>([]);
-  const [groupCount, setGroupCount] = useState(4);
+  const [groupCount, setGroupCount] = useState(3);
   const [groupResult, setGroupResult] = useState<{ groupName: string; members: string[]; color: string }[]>([]);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const { data: checkins = [] } = trpc.checkin.getAll.useQuery();
+  const { data: checkins = [], refetch: refetchCheckins } = trpc.checkin.getAll.useQuery();
   const { data: awards = [] } = trpc.award.getAll.useQuery();
   const { data: wishes = [] } = trpc.wishCard.getAll.useQuery();
-  const { data: registrations = [] } = trpc.registration.getAll.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: registrations = [], refetch: refetchRegs } = trpc.registration.getAll.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: registeredMembers = [] } = trpc.admin.getRegisteredMembers.useQuery(undefined, { enabled: isAuthenticated });
 
   const generateSpeechMutation = trpc.award.generateSpeech.useMutation({
     onSuccess: (data) => {
@@ -55,6 +62,16 @@ export default function Admin() {
     onError: (e) => toast.error("分组失败：" + e.message),
   });
 
+  const resetMutation = trpc.admin.resetEventData.useMutation({
+    onSuccess: () => {
+      toast.success("✅ 数据已清空，活动准备就绪！");
+      setShowResetConfirm(false);
+      refetchCheckins();
+      refetchRegs();
+    },
+    onError: (e) => toast.error("初始化失败：" + e.message),
+  });
+
   if (!isAuthenticated || user?.role !== "admin") {
     return (
       <div className="min-h-screen bg-festive-gradient flex items-center justify-center p-4">
@@ -79,7 +96,44 @@ export default function Admin() {
   const checkinList = (checkins as unknown) as { id: number; userId: number; userName: string; checkedInAt: Date }[];
   const awardList = awards as { id: number; name: string; description: string | null; icon: string | null }[];
   const wishList = (wishes as unknown) as { id: number; content: string; userName: string; createdAt: Date }[];
-  const regList = registrations as { id: number; realName: string; department: string }[];
+  const regList = registrations as { id: number; realName: string; department: string; position?: string }[];
+  const regMemberList = registeredMembers as { name: string; department: string; position?: string | null }[];
+
+  // 生成分组：固定雷总/刘总/王总各在不同组，其余随机分配
+  const handleGenerateGroups = () => {
+    // 优先使用注册用户，否则用预设名单
+    const memberNames = regMemberList.length >= 5
+      ? regMemberList.map((m) => m.name)
+      : DEFAULT_MEMBERS;
+
+    // 分离领导和普通成员
+    const leaders = memberNames.filter((n) => FIXED_LEADERS.includes(n));
+    const others = memberNames.filter((n) => !FIXED_LEADERS.includes(n));
+
+    // 随机打乱普通成员
+    const shuffled = [...others].sort(() => Math.random() - 0.5);
+
+    // 构建分组成员列表：领导先占位
+    const effectiveGroupCount = Math.min(groupCount, Math.max(leaders.length, 2));
+    const groupMembers: string[][] = Array.from({ length: effectiveGroupCount }, () => []);
+
+    // 固定领导分组（雷总→第一组，刘总→第二组，王总→第三组）
+    leaders.forEach((leader, idx) => {
+      if (idx < effectiveGroupCount) {
+        groupMembers[idx].push(leader);
+      }
+    });
+
+    // 轮流分配其余成员
+    shuffled.forEach((member, idx) => {
+      groupMembers[idx % effectiveGroupCount].push(member);
+    });
+
+    groupMutation.mutate({
+      members: memberNames,
+      groupCount: effectiveGroupCount,
+    });
+  };
 
   return (
     <div className="min-h-screen bg-festive-gradient relative overflow-hidden">
@@ -124,7 +178,9 @@ export default function Admin() {
                   </div>
                 ))}
               </div>
-              <div className="glass-card border-gold-glow rounded-xl p-4">
+
+              {/* 快捷操作 */}
+              <div className="glass-card border-gold-glow rounded-xl p-4 mb-3">
                 <h3 className="text-white/70 text-xs font-medium mb-3">快捷操作</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => window.open("/bigscreen", "_blank")} className="py-2.5 px-3 rounded-lg btn-gold text-xs font-medium">🖥️ 打开大屏</button>
@@ -132,6 +188,39 @@ export default function Admin() {
                   <button onClick={() => setActiveTab("awards")} className="py-2.5 px-3 rounded-lg glass-card text-white/70 text-xs font-medium">🏆 生成颁奖词</button>
                   <button onClick={() => setActiveTab("wishes")} className="py-2.5 px-3 rounded-lg glass-card text-white/70 text-xs font-medium">💌 查看心愿</button>
                 </div>
+              </div>
+
+              {/* 一键初始化 */}
+              <div className="glass-card rounded-xl p-4 border border-red-500/20">
+                <h3 className="text-white/70 text-xs font-medium mb-2 flex items-center gap-1.5">
+                  <span>⚠️</span> 活动初始化
+                </h3>
+                <p className="text-white/40 text-xs mb-3 leading-relaxed">
+                  清空所有签到、心愿卡、答题记录、抽奖和分组数据。<br />
+                  <strong className="text-red-400/70">活动开始前执行，不可恢复！</strong>
+                </p>
+                {!showResetConfirm ? (
+                  <button
+                    onClick={() => setShowResetConfirm(true)}
+                    className="w-full py-2.5 rounded-xl text-xs font-bold border border-red-500/40 text-red-400/80 hover:bg-red-500/10 transition-all"
+                  >
+                    🔄 一键清空测试数据
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-red-400 text-xs text-center font-medium">确认清空所有活动数据？</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2 rounded-lg glass-card text-white/60 text-xs">取消</button>
+                      <button
+                        onClick={() => resetMutation.mutate()}
+                        disabled={resetMutation.isPending}
+                        className="flex-1 py-2 rounded-lg bg-red-600/70 text-white text-xs font-bold disabled:opacity-60"
+                      >
+                        {resetMutation.isPending ? "清空中..." : "确认清空"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -171,7 +260,10 @@ export default function Admin() {
                     {regList.map((r) => (
                       <div key={r.id} className="flex items-center justify-between py-1.5 border-b border-white/5">
                         <span className="text-white/80 text-sm">{r.realName}</span>
-                        <span className="text-white/40 text-xs">{r.department}</span>
+                        <div className="text-right">
+                          <span className="text-white/40 text-xs">{r.department}</span>
+                          {r.position && <span className="text-white/30 text-xs ml-1">· {r.position}</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -219,7 +311,7 @@ export default function Admin() {
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className="glass-card border-gold-glow rounded-xl p-4 mb-3">
                   <p className="text-yellow-400/80 text-xs font-medium mb-2">📜 颁奖词</p>
-                  <p className="text-white/85 text-sm leading-relaxed italic">"{generatedSpeech}"</p>
+                  <p className="text-white/85 text-sm leading-relaxed">{generatedSpeech}</p>
                   <button onClick={() => { navigator.clipboard?.writeText(generatedSpeech); toast.success("已复制"); }}
                     className="mt-3 w-full py-2 rounded-lg glass-card text-white/60 text-xs">📋 复制颁奖词</button>
                 </motion.div>
@@ -246,6 +338,9 @@ export default function Admin() {
             <motion.div key="lottery" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <div className="glass-card border-gold-glow rounded-xl p-4 mb-3">
                 <h3 className="text-white font-semibold text-sm mb-3">🎰 随机抽奖</h3>
+                <p className="text-white/40 text-xs mb-3">
+                  参与池：{checkinList.length > 0 ? `${checkinList.length}位已签到员工` : "预设名单（25人）"}
+                </p>
                 <div className="mb-3">
                   <label className="text-white/60 text-xs mb-1.5 block">抽取人数</label>
                   <div className="flex items-center gap-3">
@@ -260,8 +355,8 @@ export default function Admin() {
                   onClick={() => {
                     const pool = checkinList.length > 0
                       ? checkinList.map((c) => ({ name: c.userName || `用户${c.userId}` }))
-                      : EMPLOYEES.map((n) => ({ name: n }));
-                    drawMutation.mutate({ eventId: 1, participants: pool.slice(0, lotteryCount * 5) });
+                      : DEFAULT_MEMBERS.map((n) => ({ name: n }));
+                    drawMutation.mutate({ eventId: 1, participants: pool });
                   }}
                   disabled={drawMutation.isPending}
                   className="w-full py-3 rounded-xl btn-festive font-bold text-sm disabled:opacity-60">
@@ -278,9 +373,16 @@ export default function Admin() {
               </div>
 
               <div className="glass-card border-gold-glow rounded-xl p-4">
-                <h3 className="text-white font-semibold text-sm mb-3">👥 AI随机分组</h3>
+                <h3 className="text-white font-semibold text-sm mb-1">👥 AI随机分组</h3>
+                <p className="text-white/40 text-xs mb-3">
+                  {regMemberList.length >= 5
+                    ? `基于 ${regMemberList.length} 位报名用户分组`
+                    : `使用预设名单（${DEFAULT_MEMBERS.length}人），报名人数不足时自动启用`}
+                  <br />
+                  <span className="text-yellow-400/60">★ 雷总/刘总/王总固定分入不同组</span>
+                </p>
                 <div className="mb-3">
-                  <label className="text-white/60 text-xs mb-1.5 block">分组数量</label>
+                  <label className="text-white/60 text-xs mb-1.5 block">分组数量（建议3组）</label>
                   <div className="flex items-center gap-3">
                     <button onClick={() => setGroupCount((v) => Math.max(2, v - 1))}
                       className="w-9 h-9 rounded-lg glass-card text-white/70 font-bold text-lg">−</button>
@@ -290,7 +392,7 @@ export default function Admin() {
                   </div>
                 </div>
                 <button
-                  onClick={() => groupMutation.mutate({ members: EMPLOYEES, groupCount })}
+                  onClick={handleGenerateGroups}
                   disabled={groupMutation.isPending}
                   className="w-full py-3 rounded-xl btn-gold font-bold text-sm disabled:opacity-60">
                   {groupMutation.isPending ? "分组中..." : "🤖 AI随机分组"}

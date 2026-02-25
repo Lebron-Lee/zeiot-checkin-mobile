@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -13,6 +13,10 @@ type Question = {
   optionB: string;
   optionC: string;
   optionD: string;
+};
+
+type AnswerResult = {
+  isCorrect: boolean;
   correctAnswer: string;
   explanation: string | null;
 };
@@ -23,12 +27,17 @@ const OPTION_KEYS = ["optionA", "optionB", "optionC", "optionD"] as const;
 export default function Quiz() {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
+
+  // 当前题目索引（在未答题列表中的索引）
   const [currentIdx, setCurrentIdx] = useState(0);
+  // 用户当前选择（null = 未选）
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
+  // 提交后的结果（null = 未提交）
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
+  // 本次会话中已答完的题目ID（补充服务端数据）
+  const [localAnsweredIds, setLocalAnsweredIds] = useState<number[]>([]);
+  // 本次答对数
   const [correctCount, setCorrectCount] = useState(0);
-  const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<number>>(new Set());
 
   const { data: questions = [] } = trpc.quiz.getQuestions.useQuery();
   const { data: myAnswers = [], refetch: refetchAnswers } = trpc.quiz.getMyAnswers.useQuery(undefined, {
@@ -37,8 +46,11 @@ export default function Quiz() {
 
   const submitMutation = trpc.quiz.submitAnswer.useMutation({
     onSuccess: (data) => {
-      setIsCorrect(data.isCorrect);
-      setShowResult(true);
+      setAnswerResult({
+        isCorrect: data.isCorrect,
+        correctAnswer: data.correctAnswer,
+        explanation: data.explanation ?? null,
+      });
       if (data.isCorrect) {
         setCorrectCount((prev) => prev + 1);
         toast.success("🎉 回答正确！");
@@ -50,50 +62,66 @@ export default function Quiz() {
     onError: (err) => toast.error(err.message),
   });
 
-  const allQuestions = (questions as unknown) as Question[];
+  const allQuestions = questions as unknown as Question[];
+
+  // 服务端已答题ID集合
   const serverAnsweredIds = new Set((myAnswers as { questionId: number }[]).map((a) => a.questionId));
-  const unanswered = allQuestions.filter((q) => !serverAnsweredIds.has(q.id) && !Array.from(localAnsweredIds).includes(q.id));
-  const currentQ = unanswered[currentIdx] ?? null;
 
-  const handleSelect = (label: string) => {
-    if (showResult || submitMutation.isPending) return;
+  // 合并服务端和本地已答ID
+  const allAnsweredIds = new Set([...Array.from(serverAnsweredIds), ...localAnsweredIds]);
+
+  // 未答题列表（稳定引用，不依赖currentIdx）
+  const unanswered = allQuestions.filter((q) => !allAnsweredIds.has(q.id));
+
+  // 当前题目（基于索引，但索引越界时取第一题）
+  const safeIdx = currentIdx < unanswered.length ? currentIdx : 0;
+  const currentQ = unanswered[safeIdx] ?? null;
+
+  // 选择答案（只在未提交时有效）
+  const handleSelect = useCallback((label: string) => {
+    if (answerResult !== null || submitMutation.isPending) return;
     setSelectedAnswer(label);
-  };
+  }, [answerResult, submitMutation.isPending]);
 
+  // 提交答案
   const handleSubmit = () => {
-    if (!selectedAnswer || !currentQ) return;
+    if (!selectedAnswer || !currentQ || answerResult !== null) return;
     submitMutation.mutate({ questionId: currentQ.id, answer: selectedAnswer });
   };
 
+  // 下一题
   const handleNext = () => {
     if (!currentQ) return;
-    setLocalAnsweredIds((prev) => new Set(Array.from(prev).concat(currentQ.id)));
+    // 将当前题加入本地已答列表
+    setLocalAnsweredIds((prev) => [...prev, currentQ.id]);
+    // 重置答题状态
     setSelectedAnswer(null);
-    setShowResult(false);
-    setIsCorrect(false);
-    if (currentIdx >= unanswered.length - 1) {
+    setAnswerResult(null);
+    // 索引处理：下一题列表会少一道，所以保持索引或回到0
+    const nextUnanswered = unanswered.filter((q) => q.id !== currentQ.id);
+    if (nextUnanswered.length === 0) {
       setCurrentIdx(0);
     } else {
-      setCurrentIdx((prev) => prev + 1);
+      setCurrentIdx((prev) => (prev < nextUnanswered.length ? prev : 0));
     }
   };
 
   const getOptionStyle = (label: string) => {
-    if (!showResult) {
+    if (answerResult === null) {
       return selectedAnswer === label
         ? { background: "rgba(180,30,30,0.55)", border: "1px solid rgba(255,100,100,0.6)" }
         : { background: "rgba(139,26,26,0.35)", border: "1px solid rgba(255,215,0,0.15)" };
     }
-    if (label === currentQ?.correctAnswer) {
+    if (label === answerResult.correctAnswer) {
       return { background: "rgba(34,197,94,0.25)", border: "1px solid rgba(34,197,94,0.6)" };
     }
-    if (label === selectedAnswer && label !== currentQ?.correctAnswer) {
+    if (label === selectedAnswer && label !== answerResult.correctAnswer) {
       return { background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.6)" };
     }
     return { background: "rgba(139,26,26,0.2)", border: "1px solid rgba(255,215,0,0.08)" };
   };
 
-  const totalAnswered = serverAnsweredIds.size + localAnsweredIds.size;
+  const totalAnswered = allAnsweredIds.size;
   const allDone = unanswered.length === 0 && totalAnswered > 0;
 
   if (!isAuthenticated) {
@@ -182,22 +210,22 @@ export default function Quiz() {
               {OPTION_LABELS.map((label, i) => {
                 const key = OPTION_KEYS[i];
                 const text = currentQ[key as keyof Question] as string;
-                const isCorrectOpt = showResult && label === currentQ.correctAnswer;
-                const isWrongSel = showResult && label === selectedAnswer && label !== currentQ.correctAnswer;
+                const isCorrectOpt = answerResult !== null && label === answerResult.correctAnswer;
+                const isWrongSel = answerResult !== null && label === selectedAnswer && label !== answerResult.correctAnswer;
 
                 return (
                   <motion.button
                     key={label}
                     onClick={() => handleSelect(label)}
-                    disabled={showResult}
-                    whileTap={!showResult ? { scale: 0.98 } : {}}
+                    disabled={answerResult !== null}
+                    whileTap={answerResult === null ? { scale: 0.98 } : {}}
                     className="w-full text-left p-4 rounded-xl transition-all flex items-start gap-3"
                     style={getOptionStyle(label)}
                   >
                     <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold ${
                       isCorrectOpt ? "bg-green-500 text-white"
                       : isWrongSel ? "bg-red-500 text-white"
-                      : selectedAnswer === label && !showResult ? "bg-red-700 text-white"
+                      : selectedAnswer === label && answerResult === null ? "bg-red-700 text-white"
                       : "bg-white/10 text-white/60"
                     }`}>
                       {isCorrectOpt ? "✓" : isWrongSel ? "✗" : label}
@@ -214,23 +242,23 @@ export default function Quiz() {
 
             {/* 解析 */}
             <AnimatePresence>
-              {showResult && currentQ.explanation && (
+              {answerResult !== null && answerResult.explanation && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
                   className="mb-4 overflow-hidden"
                 >
-                  <div className={`rounded-xl p-4 ${isCorrect ? "border border-green-500/30 bg-green-900/20" : "border border-red-500/30 bg-red-900/20"}`}>
+                  <div className={`rounded-xl p-4 ${answerResult.isCorrect ? "border border-green-500/30 bg-green-900/20" : "border border-red-500/30 bg-red-900/20"}`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <span>{isCorrect ? "✅" : "❌"}</span>
-                      <span className={`text-sm font-semibold ${isCorrect ? "text-green-400" : "text-red-400"}`}>
-                        {isCorrect ? "回答正确！" : `正确答案是 ${currentQ.correctAnswer}`}
+                      <span>{answerResult.isCorrect ? "✅" : "❌"}</span>
+                      <span className={`text-sm font-semibold ${answerResult.isCorrect ? "text-green-400" : "text-red-400"}`}>
+                        {answerResult.isCorrect ? "回答正确！" : `正确答案是 ${answerResult.correctAnswer}`}
                       </span>
                     </div>
                     <div className="border-t border-white/10 pt-3 mt-2">
                       <p className="text-yellow-300/80 text-xs font-medium mb-1.5">📖 知识解析</p>
-                      <p className="text-white/75 text-sm leading-relaxed">{currentQ.explanation}</p>
+                      <p className="text-white/75 text-sm leading-relaxed">{answerResult.explanation}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -238,7 +266,7 @@ export default function Quiz() {
             </AnimatePresence>
 
             {/* 按钮 */}
-            {!showResult ? (
+            {answerResult === null ? (
               <button
                 onClick={handleSubmit}
                 disabled={!selectedAnswer || submitMutation.isPending}
@@ -248,7 +276,7 @@ export default function Quiz() {
               </button>
             ) : (
               <button onClick={handleNext} className="w-full py-4 rounded-xl btn-gold font-bold text-base">
-                下一题 →
+                {unanswered.length > 1 ? "下一题 →" : "完成答题 🎉"}
               </button>
             )}
           </motion.div>

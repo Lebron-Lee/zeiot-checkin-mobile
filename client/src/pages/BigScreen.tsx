@@ -285,7 +285,7 @@ export default function BigScreen() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <img
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/GxUwIVJwQhtvDjzz.jpg"
+              src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/roiHfLVdenSnZJDu.jpg"
               alt="中易物联集团"
               className="h-10 object-contain"
               style={{ filter: "drop-shadow(0 0 10px rgba(255,215,0,0.5))" }}

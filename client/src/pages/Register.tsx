@@ -11,6 +11,12 @@ const DEPARTMENTS = [
   "运营部", "人力资源部", "财务部", "行政部", "战略发展部", "其他",
 ];
 
+const ROLES = [
+  { value: "staff", label: "正式员工" },
+  { value: "guest", label: "特邀嘉宾" },
+  { value: "partner", label: "合作伙伴" },
+];
+
 const DIETARY_OPTIONS = [
   "无特殊要求", "素食", "清真", "不吃辣", "不吃海鲜", "不吃猪肉", "其他",
 ];
@@ -24,6 +30,7 @@ export default function Register() {
     department: "",
     position: "",
     phone: "",
+    role: "staff",
     dietaryNeeds: "无特殊要求",
     expectations: "",
   });
@@ -107,7 +114,7 @@ export default function Register() {
   const handleSubmit = () => {
     if (!form.realName.trim()) { toast.error("请填写真实姓名"); return; }
     if (!form.department) { toast.error("请选择所在部门"); return; }
-    submitMutation.mutate(form);
+    submitMutation.mutate({ ...form, position: form.role === "guest" ? `特邀嘉宾${form.position ? "·" + form.position : ""}` : form.position });
   };
 
   return (
@@ -190,14 +197,37 @@ export default function Register() {
                 </select>
               </div>
 
+              {/* 参与身份 */}
+              <div>
+                <label className="text-white/60 text-xs mb-2 block">参与身份 *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {ROLES.map((r) => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setForm({ ...form, role: r.value })}
+                      className={`py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
+                        form.role === r.value
+                          ? "btn-festive text-white"
+                          : "glass-card text-white/70 hover:text-white/90"
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* 职位 */}
               <div>
-                <label className="text-white/60 text-xs mb-1.5 block">职位（选填）</label>
+                <label className="text-white/60 text-xs mb-1.5 block">
+                  {form.role === "guest" ? "单位/职务（选填）" : "职位（选填）"}
+                </label>
                 <input
                   type="text"
                   value={form.position}
                   onChange={(e) => setForm({ ...form, position: e.target.value })}
-                  placeholder="请输入您的职位"
+                  placeholder={form.role === "guest" ? "请输入所在单位或职务" : "请输入您的职位"}
                   className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 text-sm outline-none"
                   style={{ background: "rgba(139,26,26,0.4)", border: "1px solid rgba(255,215,0,0.2)" }}
                 />

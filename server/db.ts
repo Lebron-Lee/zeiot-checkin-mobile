@@ -300,3 +300,15 @@ export async function getAllRegistrations() {
   if (!db) return [];
   return db.select().from(registrations).orderBy(desc(registrations.registeredAt));
 }
+
+// ===== 一键初始化（清空测试数据）=====
+export async function resetEventData() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // 清空签到、心愿卡、答题记录、抽奖结果、分组记录
+  await db.delete(checkins);
+  await db.delete(wishCards);
+  await db.delete(quizAnswers);
+  await db.delete(lotteryResults);
+  await db.delete(teamGroups);
+}

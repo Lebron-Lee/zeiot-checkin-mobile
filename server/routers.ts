@@ -24,6 +24,7 @@ import {
   saveTeamGroups,
   submitQuizAnswer,
   updateEventConfig,
+  resetEventData,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
@@ -339,6 +340,21 @@ export const appRouter = router({
     getGroups: publicProcedure.query(async () => {
       const groups = await getTeamGroups();
       return groups.map((g) => ({ ...g, members: JSON.parse(g.members) as string[] }));
+    }),
+  }),
+
+  // ===== 管理初始化 =====
+  admin: router({
+    resetEventData: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await resetEventData();
+      return { success: true };
+    }),
+    // 获取所有注册用户（用于AI分组）
+    getRegisteredMembers: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const regs = await getAllRegistrations();
+      return regs.map((r) => ({ name: r.realName, department: r.department, position: r.position }));
     }),
   }),
 

@@ -109,7 +109,7 @@ export default function Home() {
   const { data: checkinCount } = trpc.checkin.getCount.useQuery();
   const checkinAvailable = useCheckinAvailable();
 
-  const eventDate = config?.event_date || "2026-03-02";
+  const eventDate = config?.event_date || "2026-03-01";
   const timeLeft = useCountdown(eventDate);
   const isEventDay = timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0;
 
@@ -135,7 +135,7 @@ export default function Home() {
           className="flex items-center justify-between mb-6"
         >
           <img
-            src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/GxUwIVJwQhtvDjzz.jpg"
+            src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/roiHfLVdenSnZJDu.jpg"
             alt="中易物联集团"
             className="h-9 object-contain"
             style={{ filter: "drop-shadow(0 0 8px rgba(255,215,0,0.4))" }}
@@ -161,7 +161,7 @@ export default function Home() {
           </h1>
           <h2 className="text-xl font-semibold text-white/90 mb-3">焕新出发</h2>
           <div className="flex items-center justify-center gap-3 text-sm text-white/60">
-            <span>📅 {config?.event_date || "2026-03-02"}</span>
+            <span>📅 {config?.event_date || "2026-03-01"}</span>
             <span className="w-px h-3 bg-white/20" />
             <span>📍 {config?.event_location || "中易物联集团总部"}</span>
           </div>
