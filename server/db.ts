@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  InsertRegistration,
   InsertUser,
   awardWinners,
   awards,
@@ -10,6 +11,7 @@ import {
   lotteryResults,
   quizAnswers,
   quizQuestions,
+  registrations,
   teamGroups,
   users,
   wishCards,
@@ -268,4 +270,33 @@ export async function updateEventConfig(key: string, value: string) {
     .insert(eventConfig)
     .values({ configKey: key, configValue: value })
     .onDuplicateKeyUpdate({ set: { configValue: value } });
+}
+
+// ===== 活动注册 =====
+export async function createRegistration(data: InsertRegistration) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(registrations).values(data).onDuplicateKeyUpdate({
+    set: {
+      realName: data.realName,
+      department: data.department,
+      position: data.position ?? null,
+      phone: data.phone ?? null,
+      dietaryNeeds: data.dietaryNeeds ?? null,
+      expectations: data.expectations ?? null,
+    },
+  });
+}
+
+export async function getRegistrationByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(registrations).where(eq(registrations.userId, userId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getAllRegistrations() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(registrations).orderBy(desc(registrations.registeredAt));
 }

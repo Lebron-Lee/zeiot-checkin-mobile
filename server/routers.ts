@@ -4,6 +4,8 @@ import {
   createCheckin,
   createWishCard,
   getActiveQuizQuestions,
+  createRegistration,
+  getAllRegistrations,
   getAwardWithWinners,
   getAwards,
   getCheckinByUserId,
@@ -12,6 +14,7 @@ import {
   getEventConfig,
   getLotteryEvents,
   getLotteryResults,
+  getRegistrationByUserId,
   getTeamGroups,
   getUserAnsweredQuestions,
   getUserScore,
@@ -336,6 +339,41 @@ export const appRouter = router({
     getGroups: publicProcedure.query(async () => {
       const groups = await getTeamGroups();
       return groups.map((g) => ({ ...g, members: JSON.parse(g.members) as string[] }));
+    }),
+  }),
+
+  // ===== 活动注册 =====
+  registration: router({
+    // 获取当前用户注册信息
+    getMine: protectedProcedure.query(async ({ ctx }) => {
+      return getRegistrationByUserId(ctx.user.id);
+    }),
+    // 提交注册
+    submit: protectedProcedure
+      .input(z.object({
+        realName: z.string().min(1).max(50),
+        department: z.string().min(1).max(100),
+        position: z.string().max(100).optional(),
+        phone: z.string().max(20).optional(),
+        dietaryNeeds: z.string().max(200).optional(),
+        expectations: z.string().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await createRegistration({
+          userId: ctx.user.id,
+          realName: input.realName,
+          department: input.department,
+          position: input.position,
+          phone: input.phone,
+          dietaryNeeds: input.dietaryNeeds,
+          expectations: input.expectations,
+        });
+        return { success: true };
+      }),
+    // 管理员获取所有注册
+    getAll: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return getAllRegistrations();
     }),
   }),
 });

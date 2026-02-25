@@ -5,196 +5,256 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Brain, CheckCircle2, XCircle, Trophy, Coins } from "lucide-react";
+
+type Question = {
+  id: number;
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctAnswer: string;
+  explanation: string | null;
+};
+
+const OPTION_LABELS = ["A", "B", "C", "D"] as const;
+const OPTION_KEYS = ["optionA", "optionB", "optionC", "optionD"] as const;
 
 export default function Quiz() {
   const [, navigate] = useLocation();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [result, setResult] = useState<{ isCorrect: boolean; correctAnswer: string; explanation: string | null; reward: number | null } | null>(null);
-  const [totalEarned, setTotalEarned] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<number>>(new Set());
 
-  const { data: questions } = trpc.quiz.getQuestions.useQuery();
-  const { data: myAnswers, refetch: refetchAnswers } = trpc.quiz.getMyAnswers.useQuery(undefined, { enabled: isAuthenticated });
-  const { data: myScore } = trpc.quiz.getMyScore.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: questions = [] } = trpc.quiz.getQuestions.useQuery();
+  const { data: myAnswers = [], refetch: refetchAnswers } = trpc.quiz.getMyAnswers.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
 
   const submitMutation = trpc.quiz.submitAnswer.useMutation({
     onSuccess: (data) => {
-      setResult(data);
+      setIsCorrect(data.isCorrect);
+      setShowResult(true);
       if (data.isCorrect) {
-        setTotalEarned((prev) => prev + (data.reward || 0));
-        toast.success(`回答正确！获得 ¥${data.reward} 红包！`);
+        setCorrectCount((prev) => prev + 1);
+        toast.success("🎉 回答正确！");
       } else {
-        toast.error("回答错误，继续加油！");
+        toast.error("❌ 回答错误，看看解析吧～");
       }
       refetchAnswers();
     },
-    onError: (err) => {
-      toast.error(err.message);
-    },
+    onError: (err) => toast.error(err.message),
   });
 
-  const answeredIds = new Set(myAnswers?.map((a) => a.questionId) || []);
-  const unansweredQuestions = questions?.filter((q) => !answeredIds.has(q.id)) || [];
-  const currentQuestion = unansweredQuestions[currentIdx];
+  const allQuestions = (questions as unknown) as Question[];
+  const serverAnsweredIds = new Set((myAnswers as { questionId: number }[]).map((a) => a.questionId));
+  const unanswered = allQuestions.filter((q) => !serverAnsweredIds.has(q.id) && !Array.from(localAnsweredIds).includes(q.id));
+  const currentQ = unanswered[currentIdx] ?? null;
 
-  const handleSelectAnswer = (answer: string) => {
-    if (result || !currentQuestion) return;
-    setSelectedAnswer(answer);
-    submitMutation.mutate({ questionId: currentQuestion.id, answer });
+  const handleSelect = (label: string) => {
+    if (showResult || submitMutation.isPending) return;
+    setSelectedAnswer(label);
+  };
+
+  const handleSubmit = () => {
+    if (!selectedAnswer || !currentQ) return;
+    submitMutation.mutate({ questionId: currentQ.id, answer: selectedAnswer });
   };
 
   const handleNext = () => {
+    if (!currentQ) return;
+    setLocalAnsweredIds((prev) => new Set(Array.from(prev).concat(currentQ.id)));
     setSelectedAnswer(null);
-    setResult(null);
-    if (currentIdx < unansweredQuestions.length - 1) {
+    setShowResult(false);
+    setIsCorrect(false);
+    if (currentIdx >= unanswered.length - 1) {
+      setCurrentIdx(0);
+    } else {
       setCurrentIdx((prev) => prev + 1);
     }
   };
 
-  const optionLabels = ["A", "B", "C", "D"];
-  const options = currentQuestion
-    ? [currentQuestion.optionA, currentQuestion.optionB, currentQuestion.optionC, currentQuestion.optionD]
-    : [];
+  const getOptionStyle = (label: string) => {
+    if (!showResult) {
+      return selectedAnswer === label
+        ? { background: "rgba(180,30,30,0.55)", border: "1px solid rgba(255,100,100,0.6)" }
+        : { background: "rgba(139,26,26,0.35)", border: "1px solid rgba(255,215,0,0.15)" };
+    }
+    if (label === currentQ?.correctAnswer) {
+      return { background: "rgba(34,197,94,0.25)", border: "1px solid rgba(34,197,94,0.6)" };
+    }
+    if (label === selectedAnswer && label !== currentQ?.correctAnswer) {
+      return { background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.6)" };
+    }
+    return { background: "rgba(139,26,26,0.2)", border: "1px solid rgba(255,215,0,0.08)" };
+  };
+
+  const totalAnswered = serverAnsweredIds.size + localAnsweredIds.size;
+  const allDone = unanswered.length === 0 && totalAnswered > 0;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-festive-gradient flex items-center justify-center p-4">
+        <div className="glass-card border-gold-glow rounded-2xl p-8 text-center max-w-sm w-full">
+          <div className="text-5xl mb-4">🤖</div>
+          <h2 className="text-xl font-bold text-white mb-2">请先登录</h2>
+          <p className="text-white/60 text-sm mb-6">登录后参与AI知识问答</p>
+          <a href={getLoginUrl()} className="block w-full py-3 rounded-xl btn-festive text-center font-bold">立即登录</a>
+        </div>
+      </div>
+    );
+  }
+
+  if (allDone || !currentQ) {
+    return (
+      <div className="min-h-screen bg-festive-gradient relative overflow-hidden">
+        <div className="absolute inset-0 bg-tech-grid opacity-30 pointer-events-none" />
+        <div className="relative z-10 max-w-md mx-auto px-4 py-8">
+          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-white/60 text-sm mb-6 hover:text-white/90">← 返回首页</button>
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-card border-gold-glow rounded-2xl p-8 text-center">
+            <div className="text-6xl mb-4">🏆</div>
+            <h2 className="text-2xl font-bold text-gold-gradient mb-2">答题完成！</h2>
+            <p className="text-white/70 text-sm mb-6">感谢参与AI知识问答，希望对您有所启发</p>
+            <div className="glass-card rounded-xl p-4 mb-6">
+              <div className="text-4xl font-bold text-gold-gradient">{correctCount}</div>
+              <div className="text-white/50 text-sm mt-1">本次答对题数</div>
+            </div>
+            <p className="text-white/60 text-sm leading-relaxed mb-6">
+              AI时代，持续学习是最好的竞争力。<br />期待您在工作中探索更多AI应用场景！
+            </p>
+            <button onClick={() => navigate("/")} className="w-full py-3 rounded-xl btn-gold font-bold">返回首页</button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-deep-gradient">
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400/50 to-transparent" />
-      <div className="max-w-md mx-auto px-5 py-8">
-        <button onClick={() => navigate("/")} className="flex items-center gap-2 text-white/50 hover:text-white/80 mb-6 transition-colors">
-          <ArrowLeft size={16} />
-          <span className="text-sm">返回首页</span>
-        </button>
+    <div className="min-h-screen bg-festive-gradient relative overflow-hidden">
+      <div className="absolute inset-0 bg-tech-grid opacity-30 pointer-events-none" />
+      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
 
-        {/* 标题 */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Brain className="text-yellow-400" size={24} />
-            <h1 className="text-2xl font-bold text-gold-gradient">AI知识问答</h1>
+      <div className="relative z-10 max-w-md mx-auto px-4 py-6">
+        {/* 顶部 */}
+        <div className="flex items-center justify-between mb-5">
+          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-white/60 text-sm hover:text-white/90">← 返回</button>
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400">🤖</span>
+            <span className="text-white/80 text-sm font-semibold">AI知识问答</span>
           </div>
-          <p className="text-white/40 text-sm">答对每题获得 ¥50 红包奖励</p>
-        </motion.div>
+          <div className="text-white/50 text-sm">{totalAnswered}/{allQuestions.length}</div>
+        </div>
 
-        {!isAuthenticated ? (
-          <div className="glass-card border-gold-glow rounded-2xl p-8 text-center">
-            <Brain className="text-yellow-400 mx-auto mb-4" size={48} />
-            <p className="text-white/60 mb-6">登录后参与问答赢红包</p>
-            <a href={getLoginUrl()} className="block w-full py-3 rounded-xl font-bold text-center"
-              style={{ background: "linear-gradient(135deg, #f5d060 0%, #e8a020)", color: "#050a14" }}>
-              登录参与
-            </a>
-          </div>
-        ) : (
-          <>
-            {/* 积分卡 */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-              className="glass-card border-gold-glow rounded-2xl p-4 mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-yellow-400/20 flex items-center justify-center">
-                  <Coins className="text-yellow-400" size={20} />
-                </div>
-                <div>
-                  <p className="text-white/50 text-xs">累计获得红包</p>
-                  <p className="text-gold-gradient font-bold text-xl">¥{(myScore || 0) + totalEarned}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-white/50 text-xs">已答题</p>
-                <p className="text-white/80 font-bold">{answeredIds.size} / {questions?.length || 0}</p>
-              </div>
-            </motion.div>
+        {/* 进度条 */}
+        <div className="w-full h-1.5 bg-white/10 rounded-full mb-5 overflow-hidden">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ background: "linear-gradient(90deg, #e8001d, #ffd700)" }}
+            animate={{ width: `${(totalAnswered / Math.max(allQuestions.length, 1)) * 100}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
 
-            {/* 全部答完 */}
-            {unansweredQuestions.length === 0 ? (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-card border-gold-glow rounded-2xl p-8 text-center">
-                <div className="text-5xl mb-4">🎉</div>
-                <h2 className="text-xl font-bold text-gold-gradient mb-2">全部答完啦！</h2>
-                <p className="text-white/60 text-sm mb-2">共答对 {myAnswers?.filter(a => a.isCorrect).length || 0} 题</p>
-                <p className="text-yellow-400 font-bold text-lg">累计获得 ¥{myScore || 0} 红包</p>
-                <button onClick={() => navigate("/")} className="mt-6 w-full py-3 rounded-xl border border-yellow-400/30 text-yellow-400/80 text-sm">
-                  返回首页
-                </button>
-              </motion.div>
-            ) : (
-              <AnimatePresence mode="wait">
-                <motion.div key={currentQuestion?.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  {/* 进度 */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-white/40 text-xs">第 {currentIdx + 1} / {unansweredQuestions.length} 题</span>
-                    <div className="flex gap-1">
-                      {unansweredQuestions.map((_, i) => (
-                        <div key={i} className={`h-1 w-6 rounded-full ${i === currentIdx ? "bg-yellow-400" : "bg-white/20"}`} />
-                      ))}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentQ.id}
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* AI标签 */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-yellow-400/30 bg-yellow-400/10 mb-3">
+              <span className="text-yellow-300 text-xs">🤖 AI知识</span>
+            </div>
+
+            {/* 题目 */}
+            <div className="glass-card border-gold-glow rounded-2xl p-5 mb-4">
+              <p className="text-white text-base leading-relaxed font-medium">{currentQ.question}</p>
+            </div>
+
+            {/* 选项 */}
+            <div className="space-y-3 mb-4">
+              {OPTION_LABELS.map((label, i) => {
+                const key = OPTION_KEYS[i];
+                const text = currentQ[key as keyof Question] as string;
+                const isCorrectOpt = showResult && label === currentQ.correctAnswer;
+                const isWrongSel = showResult && label === selectedAnswer && label !== currentQ.correctAnswer;
+
+                return (
+                  <motion.button
+                    key={label}
+                    onClick={() => handleSelect(label)}
+                    disabled={showResult}
+                    whileTap={!showResult ? { scale: 0.98 } : {}}
+                    className="w-full text-left p-4 rounded-xl transition-all flex items-start gap-3"
+                    style={getOptionStyle(label)}
+                  >
+                    <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold ${
+                      isCorrectOpt ? "bg-green-500 text-white"
+                      : isWrongSel ? "bg-red-500 text-white"
+                      : selectedAnswer === label && !showResult ? "bg-red-700 text-white"
+                      : "bg-white/10 text-white/60"
+                    }`}>
+                      {isCorrectOpt ? "✓" : isWrongSel ? "✗" : label}
+                    </span>
+                    <span className={`text-sm leading-relaxed ${
+                      isCorrectOpt ? "text-green-300 font-medium"
+                      : isWrongSel ? "text-red-300"
+                      : "text-white/90"
+                    }`}>{text}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* 解析 */}
+            <AnimatePresence>
+              {showResult && currentQ.explanation && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-4 overflow-hidden"
+                >
+                  <div className={`rounded-xl p-4 ${isCorrect ? "border border-green-500/30 bg-green-900/20" : "border border-red-500/30 bg-red-900/20"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span>{isCorrect ? "✅" : "❌"}</span>
+                      <span className={`text-sm font-semibold ${isCorrect ? "text-green-400" : "text-red-400"}`}>
+                        {isCorrect ? "回答正确！" : `正确答案是 ${currentQ.correctAnswer}`}
+                      </span>
+                    </div>
+                    <div className="border-t border-white/10 pt-3 mt-2">
+                      <p className="text-yellow-300/80 text-xs font-medium mb-1.5">📖 知识解析</p>
+                      <p className="text-white/75 text-sm leading-relaxed">{currentQ.explanation}</p>
                     </div>
                   </div>
-
-                  {/* 题目 */}
-                  <div className="glass-card border-gold-glow rounded-2xl p-5 mb-4">
-                    <p className="text-white/90 text-base leading-relaxed font-medium">{currentQuestion?.question}</p>
-                  </div>
-
-                  {/* 选项 */}
-                  <div className="space-y-3 mb-4">
-                    {options.map((option, i) => {
-                      const label = optionLabels[i];
-                      const isSelected = selectedAnswer === label;
-                      const isCorrect = result?.correctAnswer === label;
-                      const isWrong = isSelected && !result?.isCorrect;
-
-                      let btnClass = "w-full p-4 rounded-xl text-left transition-all flex items-start gap-3 ";
-                      if (result) {
-                        if (isCorrect) btnClass += "bg-green-400/20 border border-green-400/50";
-                        else if (isWrong) btnClass += "bg-red-400/20 border border-red-400/50";
-                        else btnClass += "glass-card opacity-50";
-                      } else {
-                        btnClass += isSelected ? "bg-yellow-400/20 border border-yellow-400/50" : "glass-card hover:border-yellow-400/30";
-                      }
-
-                      return (
-                        <button key={label} onClick={() => handleSelectAnswer(label)} disabled={!!result || submitMutation.isPending} className={btnClass}>
-                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                            result ? (isCorrect ? "bg-green-400 text-white" : isWrong ? "bg-red-400 text-white" : "bg-white/10 text-white/40")
-                              : isSelected ? "bg-yellow-400 text-gray-900" : "bg-white/10 text-white/60"
-                          }`}>{label}</span>
-                          <span className={`text-sm leading-relaxed ${result ? (isCorrect ? "text-green-300" : isWrong ? "text-red-300" : "text-white/40") : "text-white/80"}`}>
-                            {option}
-                          </span>
-                          {result && isCorrect && <CheckCircle2 className="text-green-400 ml-auto flex-shrink-0" size={18} />}
-                          {result && isWrong && <XCircle className="text-red-400 ml-auto flex-shrink-0" size={18} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* 结果解析 */}
-                  <AnimatePresence>
-                    {result && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`rounded-xl p-4 mb-4 ${result.isCorrect ? "bg-green-400/10 border border-green-400/30" : "bg-red-400/10 border border-red-400/30"}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          {result.isCorrect ? <CheckCircle2 className="text-green-400" size={18} /> : <XCircle className="text-red-400" size={18} />}
-                          <span className={`font-semibold text-sm ${result.isCorrect ? "text-green-400" : "text-red-400"}`}>
-                            {result.isCorrect ? `回答正确！获得 ¥${result.reward} 红包` : "回答错误"}
-                          </span>
-                        </div>
-                        <p className="text-white/60 text-xs leading-relaxed">{result.explanation}</p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* 下一题 */}
-                  {result && (
-                    <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={handleNext}
-                      className="w-full py-3 rounded-xl font-bold text-sm"
-                      style={{ background: "linear-gradient(135deg, #f5d060 0%, #e8a020)", color: "#050a14" }}>
-                      {currentIdx < unansweredQuestions.length - 1 ? "下一题 →" : "查看成绩"}
-                    </motion.button>
-                  )}
                 </motion.div>
-              </AnimatePresence>
+              )}
+            </AnimatePresence>
+
+            {/* 按钮 */}
+            {!showResult ? (
+              <button
+                onClick={handleSubmit}
+                disabled={!selectedAnswer || submitMutation.isPending}
+                className={`w-full py-4 rounded-xl font-bold text-base transition-all ${selectedAnswer ? "btn-festive" : "btn-disabled cursor-not-allowed"}`}
+              >
+                {submitMutation.isPending ? "提交中..." : "确认答案"}
+              </button>
+            ) : (
+              <button onClick={handleNext} className="w-full py-4 rounded-xl btn-gold font-bold text-base">
+                下一题 →
+              </button>
             )}
-          </>
-        )}
+          </motion.div>
+        </AnimatePresence>
+
+        <p className="text-center text-white/25 text-xs mt-5">AI时代，学习是最好的投资 · 共 {allQuestions.length} 道题</p>
       </div>
     </div>
   );

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `registrations` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `realName` varchar(50) NOT NULL,\n  `department` varchar(100) NOT NULL,\n  `position` varchar(100),\n  `phone` varchar(20),\n  `dietaryNeeds` varchar(200),\n  `expectations` text,\n  `isRegistered` boolean DEFAULT true,\n  `registeredAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `registrations_id` PRIMARY KEY(`id`),\n  CONSTRAINT `registrations_userId_unique` UNIQUE(`userId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute CREATE TABLE IF NOT EXISTS `registrations` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `realName` varchar(50) NOT NULL,\n  `department` varchar(100) NOT NULL,\n  `position` varchar(100),\n  `phone` varchar(20),\n  `dietaryNeeds` varchar(200),\n  `expectations` text,\n  `isRegistered` boolean DEFAULT true,\n  `registeredAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `registrations_id` PRIMARY KEY(`id`),\n  CONSTRAINT `registrations_userId_unique` UNIQUE(`userId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1737
+}

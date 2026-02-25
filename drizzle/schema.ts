@@ -148,6 +148,23 @@ export const teamGroups = mysqlTable("team_groups", {
 
 export type TeamGroup = typeof teamGroups.$inferSelect;
 
+// 活动注册信息表（手机端用户注册）
+export const registrations = mysqlTable("registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  realName: varchar("realName", { length: 50 }).notNull(),
+  department: varchar("department", { length: 100 }).notNull(),
+  position: varchar("position", { length: 100 }),
+  phone: varchar("phone", { length: 20 }),
+  dietaryNeeds: varchar("dietaryNeeds", { length: 200 }), // 饮食需求
+  expectations: text("expectations"), // 对活动的期待
+  isRegistered: boolean("isRegistered").default(true),
+  registeredAt: timestamp("registeredAt").defaultNow().notNull(),
+});
+
+export type Registration = typeof registrations.$inferSelect;
+export type InsertRegistration = typeof registrations.$inferInsert;
+
 // 活动配置表
 export const eventConfig = mysqlTable("event_config", {
   id: int("id").autoincrement().primaryKey(),

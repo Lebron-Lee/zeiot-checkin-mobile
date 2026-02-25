@@ -4,7 +4,8 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import Home from "@/pages/Home";
+import Register from "@/pages/Register";
 import Checkin from "./pages/Checkin";
 import Schedule from "./pages/Schedule";
 import Awards from "./pages/Awards";
@@ -17,7 +18,8 @@ import Admin from "./pages/Admin";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path={"/"} component={Home} />
+      <Route path={"/register"} component={Register} />
       <Route path="/checkin" component={Checkin} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/awards" component={Awards} />
