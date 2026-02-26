@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -20,7 +19,6 @@ const DEFAULT_MEMBERS = [
 
 export default function Admin() {
   const [, navigate] = useLocation();
-  const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [winnerName, setWinnerName] = useState("");
   const [selectedAward, setSelectedAward] = useState("");
@@ -35,8 +33,8 @@ export default function Admin() {
   const { data: checkins = [], refetch: refetchCheckins } = trpc.checkin.getAll.useQuery();
   const { data: awards = [] } = trpc.award.getAll.useQuery();
   const { data: wishes = [] } = trpc.wishCard.getAll.useQuery();
-  const { data: registrations = [], refetch: refetchRegs } = trpc.registration.getAll.useQuery(undefined, { enabled: isAuthenticated });
-  const { data: registeredMembers = [] } = trpc.admin.getRegisteredMembers.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: registrations = [], refetch: refetchRegs } = trpc.registration.getAll.useQuery();
+  const { data: registeredMembers = [] } = trpc.admin.getRegisteredMembers.useQuery();
 
   const generateSpeechMutation = trpc.award.generateSpeech.useMutation({
     onSuccess: (data) => {
@@ -84,18 +82,6 @@ export default function Admin() {
     toast.success(enabled ? "🔧 调试模式已开启，签到不受时间限制" : "✅ 调试模式已关闭，恢复正常时间限制");
   };
 
-  if (!isAuthenticated || user?.role !== "admin") {
-    return (
-      <div className="min-h-screen bg-festive-gradient flex items-center justify-center p-4">
-        <div className="glass-card border-gold-glow rounded-2xl p-8 text-center max-w-sm w-full">
-          <div className="text-5xl mb-4">🔒</div>
-          <h2 className="text-xl font-bold text-white mb-2">权限不足</h2>
-          <p className="text-white/60 text-sm mb-6">此页面仅管理员可访问</p>
-          <button onClick={() => navigate("/")} className="w-full py-3 rounded-xl btn-gold font-bold">返回首页</button>
-        </div>
-      </div>
-    );
-  }
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: "overview", label: "概览", icon: "📊" },
