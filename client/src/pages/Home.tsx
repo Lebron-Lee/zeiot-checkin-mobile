@@ -96,7 +96,6 @@ function CountdownBlock({ value, label }: { value: number; label: string }) {
 const navItems = [
   { path: "/checkin", icon: "🎯", label: "AI签到", desc: "立即签到", color: "from-red-800/60 to-red-600/40" },
   { path: "/schedule", icon: "📅", label: "活动日程", desc: "全天流程", color: "from-orange-900/60 to-orange-700/40" },
-  { path: "/awards", icon: "🏆", label: "荣誉殿堂", desc: "奖项展示", color: "from-yellow-900/60 to-yellow-700/40" },
   { path: "/quiz", icon: "🤖", label: "AI问答", desc: "涨知识", color: "from-red-900/60 to-pink-800/40" },
   { path: "/wish", icon: "✨", label: "心愿卡", desc: "写下心愿", color: "from-purple-900/60 to-purple-700/40" },
   { path: "/profile", icon: "👤", label: "我的", desc: "个人中心", color: "from-rose-900/60 to-rose-700/40" },
