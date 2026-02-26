@@ -163,7 +163,7 @@ export default function Home() {
           <div className="flex items-center justify-center gap-3 text-sm text-white/60">
             <span>📅 {config?.event_date || "2026-03-01"}</span>
             <span className="w-px h-3 bg-white/20" />
-            <span>📍 {config?.event_location || "中易物联集团总部"}</span>
+            <span>📍 {config?.event_location || "中易物联唐山分公司易识通"}</span>
           </div>
         </motion.div>
 

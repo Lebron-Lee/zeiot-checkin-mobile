@@ -1,0 +1,54 @@
+{
+  "query": "UPDATE event_config SET configValue = '中易物联唐山分公司易识通' WHERE configKey = 'event_location';\nUPDATE event_config SET configValue = '中易物联唐山分公司易识通' WHERE configKey = 'location';\nSELECT configKey, configValue FROM event_config;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute UPDATE event_config SET configValue = '中易物联唐山分公司易识通' WHERE configKey = 'event_location';\nUPDATE event_config SET configValue = '中易物联唐山分公司易识通' WHERE configKey = 'location';\nSELECT configKey, configValue FROM event_config;",
+  "rows": [
+    {
+      "configKey": "event_name",
+      "configValue": "中易物联集团2026开工盛典"
+    },
+    {
+      "configKey": "event_theme",
+      "configValue": "AI智启·同心聚力·焕新出发"
+    },
+    {
+      "configKey": "event_date",
+      "configValue": "2026-03-01"
+    },
+    {
+      "configKey": "event_time",
+      "configValue": "09:00"
+    },
+    {
+      "configKey": "event_location",
+      "configValue": "中易物联唐山分公司易识通"
+    },
+    {
+      "configKey": "event_total_attendees",
+      "configValue": "25"
+    },
+    {
+      "configKey": "checkin_start_time",
+      "configValue": "08:30"
+    },
+    {
+      "configKey": "checkin_end_time",
+      "configValue": "09:30"
+    },
+    {
+      "configKey": "logo_grid_size",
+      "configValue": "25"
+    },
+    {
+      "configKey": "bigscreen_url",
+      "configValue": ""
+    },
+    {
+      "configKey": "debug_mode",
+      "configValue": "true"
+    }
+  ],
+  "messages": [],
+  "stdout": "configKey\tconfigValue\nevent_name\t中易物联集团2026开工盛典\nevent_theme\tAI智启·同心聚力·焕新出发\nevent_date\t2026-03-01\nevent_time\t09:00\nevent_location\t中易物联唐山分公司易识通\nevent_total_attendees\t25\ncheckin_start_time\t08:30\ncheckin_end_time\t09:30\nlogo_grid_size\t25\nbigscreen_url\t\ndebug_mode\ttrue\n",
+  "stderr": "",
+  "execution_time_ms": 2102
+}
