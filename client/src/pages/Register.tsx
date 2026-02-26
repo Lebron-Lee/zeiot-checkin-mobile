@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -33,11 +33,23 @@ export default function Register() {
   });
   const [loginPhone, setLoginPhone] = useState("");
 
+  // 登录/注册成功后的跳转标记
+  const [pendingRedirect, setPendingRedirect] = useState(false);
+
+  // 监听认证状态变化：一旦登录成功且有用户信息，立即跳转
+  useEffect(() => {
+    if (pendingRedirect && isAuthenticated && user) {
+      navigate("/checkin");
+    }
+  }, [pendingRedirect, isAuthenticated, user, navigate]);
+
   const registerMutation = trpc.auth.localRegister.useMutation({
     onSuccess: (data) => {
       toast.success(data.isNew ? "🎉 注册成功！欢迎参加开工盛典！" : "👋 欢迎回来！");
+      setPendingRedirect(true);
       utils.auth.me.invalidate();
-      setTimeout(() => navigate("/checkin"), 1000);
+      // 兜底：3秒后无论如何跳转
+      setTimeout(() => navigate("/checkin"), 3000);
     },
     onError: (e) => toast.error("注册失败：" + e.message),
   });
@@ -45,8 +57,10 @@ export default function Register() {
   const loginMutation = trpc.auth.localLogin.useMutation({
     onSuccess: () => {
       toast.success("登录成功！");
+      setPendingRedirect(true);
       utils.auth.me.invalidate();
-      setTimeout(() => navigate("/checkin"), 1000);
+      // 兜底：3秒后无论如何跳转
+      setTimeout(() => navigate("/checkin"), 3000);
     },
     onError: (e) => toast.error(e.message || "登录失败"),
   });

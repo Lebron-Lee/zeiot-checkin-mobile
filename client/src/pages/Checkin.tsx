@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Camera, CheckCircle2, RotateCcw, Scan, Loader2, UserCircle2 } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, RotateCcw, Scan, Loader2, UserCircle2, Upload } from "lucide-react";
 
 const MESSAGES = [
   "2026，AI赋能，乘风破浪！",
@@ -118,6 +118,8 @@ export default function Checkin() {
   const [scanning, setScanning] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [checkinResult, setCheckinResult] = useState<{ avatarUrl?: string; userName?: string } | null>(null);
+  const [cameraFailed, setCameraFailed] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: myCheckin } = trpc.checkin.getMyCheckin.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -138,12 +140,19 @@ export default function Checkin() {
 
   // 打开摄像头
   const openCamera = useCallback(async () => {
+    // 检查是否支持 getUserMedia
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraFailed(true);
+      toast.error("当前环境不支持摄像头，请使用文件上传方式签到");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 640 } },
         audio: false,
       });
       streamRef.current = stream;
+      setCameraFailed(false);
       setStep("camera");
       setScanning(true);
       setFaceDetected(false);
@@ -159,10 +168,39 @@ export default function Checkin() {
           setFaceDetected(true);
         }, 2500);
       }, 100);
-    } catch (err) {
-      toast.error("无法访问摄像头，请检查权限设置");
+    } catch (err: unknown) {
       console.error("Camera error:", err);
+      const errName = (err as { name?: string })?.name;
+      if (errName === "NotAllowedError" || errName === "PermissionDeniedError") {
+        toast.error("摄像头权限被拒绝，请在浏览器设置中允许访问摄像头，或使用照片上传方式签到");
+      } else if (errName === "NotFoundError" || errName === "DevicesNotFoundError") {
+        toast.error("未找到摄像头设备，请使用照片上传方式签到");
+      } else if (errName === "NotSupportedError" || errName === "InsecureContextError") {
+        toast.error("当前页面不支持摄像头（需要HTTPS），请使用照片上传方式签到");
+      } else {
+        toast.error("无法访问摄像头，请检查权限设置或使用照片上传方式签到");
+      }
+      setCameraFailed(true);
     }
+  }, []);
+
+  // 文件上传方式（降级方案）
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("请选择图片文件");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (dataUrl) {
+        setPhotoDataUrl(dataUrl);
+        setStep("preview");
+      }
+    };
+    reader.readAsDataURL(file);
   }, []);
 
   // 关闭摄像头
@@ -322,6 +360,7 @@ export default function Checkin() {
     <div className="min-h-screen bg-festive-gradient flex flex-col">
       <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
       <canvas ref={canvasRef} className="hidden" />
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
 
       <div className="max-w-md mx-auto px-5 py-6 flex flex-col flex-1">
         <button onClick={() => step === "camera" ? closeCamera() : navigate("/")}
@@ -392,13 +431,36 @@ export default function Checkin() {
               </div>
 
               {/* 开始刷脸按钮 */}
-              <button onClick={openCamera} className="w-full py-4 rounded-2xl font-bold text-lg relative overflow-hidden group btn-festive">
+              <button onClick={openCamera} className="w-full py-4 rounded-2xl font-bold text-lg relative overflow-hidden group btn-festive mb-3">
                 <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-12" />
                 <span className="relative flex items-center justify-center gap-2">
                   <Camera size={20} />
                   开始刷脸签到
                 </span>
               </button>
+              {/* 摄像头失败时显示文件上传降级方案 */}
+              {cameraFailed && (
+                <div className="text-center">
+                  <p className="text-white/40 text-xs mb-2">摄像头不可用？可以上传照片代替</p>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 rounded-xl border border-yellow-400/30 text-yellow-400/80 text-sm hover:bg-yellow-400/5 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Upload size={16} />
+                    上传照片签到
+                  </button>
+                </div>
+              )}
+              {/* 始终显示上传选项 */}
+              {!cameraFailed && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2 rounded-xl text-white/30 text-xs hover:text-white/50 transition-all flex items-center justify-center gap-1.5 mt-1"
+                >
+                  <Upload size={12} />
+                  或上传照片签到
+                </button>
+              )}
             </motion.div>
           )}
 

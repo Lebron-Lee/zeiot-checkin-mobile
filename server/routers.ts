@@ -105,10 +105,9 @@ export const appRouter = router({
     getConfig: publicProcedure.query(async () => {
       return getEventConfig();
     }),
-    updateConfig: protectedProcedure
+    updateConfig: publicProcedure
       .input(z.object({ key: z.string(), value: z.string() }))
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      .mutation(async ({ input }) => {
         await updateEventConfig(input.key, input.value);
         return { success: true };
       }),
@@ -285,10 +284,9 @@ export const appRouter = router({
     getAll: publicProcedure.query(async () => {
       return getAwardWithWinners();
     }),
-    generateSpeech: protectedProcedure
+    generateSpeech: publicProcedure
       .input(z.object({ winnerName: z.string(), awardName: z.string(), department: z.string().optional() }))
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      .mutation(async ({ input }) => {
 
         const response = await invokeLLM({
           messages: [
@@ -335,15 +333,14 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getLotteryResults(input.eventId);
       }),
-    draw: protectedProcedure
+    draw: publicProcedure
       .input(
         z.object({
           eventId: z.number(),
           participants: z.array(z.object({ name: z.string(), department: z.string().optional() })),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      .mutation(async ({ input }) => {
 
         const events = await getLotteryEvents();
         const event = events.find((e) => e.id === input.eventId);
@@ -373,15 +370,14 @@ export const appRouter = router({
 
         return { winners };
       }),
-    generateGroups: protectedProcedure
+    generateGroups: publicProcedure
       .input(
         z.object({
           members: z.array(z.string()),
           groupCount: z.number().min(2).max(10),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      .mutation(async ({ input }) => {
 
         const shuffled = [...input.members].sort(() => Math.random() - 0.5);
         const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F"];
@@ -419,14 +415,12 @@ export const appRouter = router({
 
   // ===== 管理初始化 =====
   admin: router({
-    resetEventData: protectedProcedure.mutation(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    resetEventData: publicProcedure.mutation(async () => {
       await resetEventData();
       return { success: true };
     }),
     // 获取所有注册用户（用于AI分组）
-    getRegisteredMembers: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    getRegisteredMembers: publicProcedure.query(async () => {
       const regs = await getAllRegistrations();
       return regs.map((r) => ({ name: r.realName, department: r.department, position: r.position }));
     }),
@@ -461,8 +455,7 @@ export const appRouter = router({
         return { success: true };
       }),
     // 管理员获取所有注册
-    getAll: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    getAll: publicProcedure.query(async () => {
       return getAllRegistrations();
     }),
   }),

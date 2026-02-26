@@ -235,19 +235,8 @@ describe("lottery router", () => {
     expect(Array.isArray(events)).toBe(true);
   });
 
-  it("draw requires admin role", async () => {
-    const ctx = createUserContext("user");
-    const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.lottery.draw({
-        eventId: 1,
-        participants: [{ name: "张三" }, { name: "李四" }],
-      })
-    ).rejects.toThrow();
-  });
-
-  it("draw selects winners for admin", async () => {
-    const ctx = createUserContext("admin");
+  it("draw selects winners for any user (no auth required)", async () => {
+    const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.lottery.draw({
       eventId: 1,
@@ -258,16 +247,8 @@ describe("lottery router", () => {
     expect(result.winners.length).toBeLessThanOrEqual(1);
   });
 
-  it("generateGroups requires admin role", async () => {
-    const ctx = createUserContext("user");
-    const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.lottery.generateGroups({ members: ["张三", "李四"], groupCount: 2 })
-    ).rejects.toThrow();
-  });
-
-  it("generateGroups creates correct number of groups for admin", async () => {
-    const ctx = createUserContext("admin");
+  it("generateGroups creates correct number of groups (no auth required)", async () => {
+    const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
     const members = ["张三", "李四", "王五", "赵六", "钱七", "孙八"];
     const result = await caller.lottery.generateGroups({ members, groupCount: 3 });
@@ -279,16 +260,8 @@ describe("lottery router", () => {
 
 // ===== 颁奖词生成测试 =====
 describe("award router", () => {
-  it("generateSpeech requires admin role", async () => {
-    const ctx = createUserContext("user");
-    const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.award.generateSpeech({ winnerName: "张三", awardName: "年度优秀员工奖" })
-    ).rejects.toThrow();
-  });
-
-  it("generateSpeech returns AI speech for admin", async () => {
-    const ctx = createUserContext("admin");
+  it("generateSpeech returns AI speech (no auth required)", async () => {
+    const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.award.generateSpeech({
       winnerName: "张三",
@@ -310,12 +283,11 @@ describe("event router", () => {
     expect(config).toHaveProperty("event_location");
   });
 
-  it("updateConfig requires admin role", async () => {
-    const ctx = createUserContext("user");
+  it("updateConfig succeeds without auth (public procedure)", async () => {
+    const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.event.updateConfig({ key: "event_date", value: "2026-03-03" })
-    ).rejects.toThrow();
+    const result = await caller.event.updateConfig({ key: "event_date", value: "2026-03-03" });
+    expect(result).toHaveProperty("success", true);
   });
 });
 
@@ -341,5 +313,109 @@ describe("auth router", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.logout();
     expect(result).toEqual({ success: true });
+  });
+});
+
+// ===== 本地注册登录测试 =====
+describe("local auth router", () => {
+  it("localRegister creates new user and sets session cookie", async () => {
+    const { getUserByOpenId, upsertUser } = await import("./db");
+    vi.mocked(getUserByOpenId).mockResolvedValueOnce(undefined); // 用户不存在
+    vi.mocked(getUserByOpenId).mockResolvedValueOnce({
+      id: 2,
+      openId: "local_13800138000",
+      name: "张三",
+      email: null,
+      loginMethod: "local",
+      role: "user",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    });
+    const mockCookie = vi.fn();
+    const ctx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {}, get: vi.fn() } as unknown as TrpcContext["req"],
+      res: { cookie: mockCookie, clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.auth.localRegister({
+      phone: "13800138000",
+      name: "张三",
+      role: "employee",
+    });
+    expect(result).toHaveProperty("success", true);
+    expect(result).toHaveProperty("isNew", true);
+    expect(mockCookie).toHaveBeenCalled();
+    expect(upsertUser).toHaveBeenCalled();
+  });
+
+  it("localRegister returns isNew=false for existing user", async () => {
+    const { getUserByOpenId } = await import("./db");
+    vi.mocked(getUserByOpenId).mockResolvedValueOnce({
+      id: 3,
+      openId: "local_13900139000",
+      name: "李四",
+      email: null,
+      loginMethod: "local",
+      role: "user",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    });
+    const mockCookie = vi.fn();
+    const ctx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {}, get: vi.fn() } as unknown as TrpcContext["req"],
+      res: { cookie: mockCookie, clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.auth.localRegister({
+      phone: "13900139000",
+      name: "李四",
+      role: "employee",
+    });
+    expect(result).toHaveProperty("success", true);
+    expect(result).toHaveProperty("isNew", false);
+  });
+
+  it("localLogin fails for non-existent user", async () => {
+    const { getUserByOpenId } = await import("./db");
+    vi.mocked(getUserByOpenId).mockResolvedValueOnce(undefined);
+    const ctx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {}, get: vi.fn() } as unknown as TrpcContext["req"],
+      res: { cookie: vi.fn(), clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.auth.localLogin({ phone: "19999999999" })
+    ).rejects.toThrow("手机号未注册，请先注册");
+  });
+
+  it("localLogin succeeds for registered user", async () => {
+    const { getUserByOpenId } = await import("./db");
+    vi.mocked(getUserByOpenId).mockResolvedValueOnce({
+      id: 4,
+      openId: "local_18800188000",
+      name: "王五",
+      email: null,
+      loginMethod: "local",
+      role: "user",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    });
+    const mockCookie = vi.fn();
+    const ctx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {}, get: vi.fn() } as unknown as TrpcContext["req"],
+      res: { cookie: mockCookie, clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.auth.localLogin({ phone: "18800188000" });
+    expect(result).toHaveProperty("success", true);
+    expect(result.user?.name).toBe("王五");
+    expect(mockCookie).toHaveBeenCalled();
   });
 });

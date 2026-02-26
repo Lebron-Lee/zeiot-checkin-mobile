@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { motion, AnimatePresence } from "framer-motion";
 
 // 计算倒计时
@@ -27,11 +26,11 @@ function useCountdown(targetDate: string) {
   return timeLeft;
 }
 
-// 判断签到按钮是否可用（2026-03-01 08:00:00 CST 之后）
+// 判断签到按钮是否可用（2026-03-01 08:30:00 CST 之后）
 function useCheckinAvailable() {
   const [available, setAvailable] = useState(false);
   useEffect(() => {
-    const unlockTime = new Date("2026-03-01T08:00:00+08:00").getTime();
+    const unlockTime = new Date("2026-03-01T08:30:00+08:00").getTime();
     const check = () => setAvailable(Date.now() >= unlockTime);
     check();
     const t = setInterval(check, 10000);
@@ -203,12 +202,12 @@ export default function Home() {
           className="mb-5"
         >
           {!isAuthenticated ? (
-            <a
-              href={getLoginUrl()}
+            <button
+              onClick={() => navigate("/register")}
               className="block w-full py-4 text-center rounded-2xl font-bold text-lg btn-festive"
             >
-              🎊 登录参与活动
-            </a>
+              🎊 注册/登录参与活动
+            </button>
           ) : checkinAvailable ? (
             <button
               onClick={handleCheckin}
@@ -224,7 +223,7 @@ export default function Home() {
                 disabled
                 className="w-full py-4 rounded-2xl font-bold text-base btn-disabled"
               >
-                🔒 签到将于 3月1日 08:00 开启
+                🔒 签到将于 3月1日 08:30 开启
               </button>
               <p className="text-center text-yellow-300/60 text-xs mt-2">
                 活动预热中，敬请期待 ✨
