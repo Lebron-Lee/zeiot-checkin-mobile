@@ -1,7 +1,6 @@
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { motion } from "framer-motion";
 import { ArrowLeft, LogOut, CheckCircle2, Brain, Heart, Star } from "lucide-react";
 
@@ -18,10 +17,13 @@ export default function Profile() {
       <div className="min-h-screen bg-deep-gradient flex flex-col items-center justify-center px-5">
         <div className="text-5xl mb-4">👤</div>
         <p className="text-white/60 mb-6 text-center">登录后查看个人参与记录</p>
-        <a href={getLoginUrl()} className="w-full max-w-sm py-3 rounded-xl font-bold text-center block"
-          style={{ background: "linear-gradient(135deg, #f5d060 0%, #e8a020)", color: "#050a14" }}>
-          登录
-        </a>
+        <button
+          onClick={() => navigate("/register")}
+          className="w-full max-w-sm py-3 rounded-xl font-bold text-center block"
+          style={{ background: "linear-gradient(135deg, #f5d060 0%, #e8a020)", color: "#050a14" }}
+        >
+          登录 / 注册
+        </button>
       </div>
     );
   }

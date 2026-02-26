@@ -26,19 +26,6 @@ function useCountdown(targetDate: string) {
   return timeLeft;
 }
 
-// 判断签到按钮是否可用（2026-03-01 08:30:00 CST 之后）
-function useCheckinAvailable() {
-  const [available, setAvailable] = useState(false);
-  useEffect(() => {
-    const unlockTime = new Date("2026-03-01T08:30:00+08:00").getTime();
-    const check = () => setAvailable(Date.now() >= unlockTime);
-    check();
-    const t = setInterval(check, 10000);
-    return () => clearInterval(t);
-  }, []);
-  return available;
-}
-
 // 烟花粒子背景
 function FestiveBackground() {
   const particles = Array.from({ length: 30 }, (_, i) => ({
@@ -105,14 +92,11 @@ export default function Home() {
   const { isAuthenticated } = useAuth();
   const { data: config } = trpc.event.getConfig.useQuery();
   const { data: checkinCount } = trpc.checkin.getCount.useQuery();
-  const checkinAvailable = useCheckinAvailable();
-
   const eventDate = config?.event_date || "2026-03-01";
   const timeLeft = useCountdown(eventDate);
   const isEventDay = timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0;
 
   const handleCheckin = () => {
-    if (!checkinAvailable) return;
     navigate("/checkin");
   };
 
@@ -208,7 +192,7 @@ export default function Home() {
             >
               🎊 注册/登录参与活动
             </button>
-          ) : checkinAvailable ? (
+          ) : (
             <button
               onClick={handleCheckin}
               className="w-full py-4 rounded-2xl font-bold text-lg btn-festive animate-pulse-red"
@@ -217,18 +201,6 @@ export default function Home() {
                 <span>🎯</span> 立即AI签到 <span>🎯</span>
               </span>
             </button>
-          ) : (
-            <div className="w-full">
-              <button
-                disabled
-                className="w-full py-4 rounded-2xl font-bold text-base btn-disabled"
-              >
-                🔒 签到将于 3月1日 08:30 开启
-              </button>
-              <p className="text-center text-yellow-300/60 text-xs mt-2">
-                活动预热中，敬请期待 ✨
-              </p>
-            </div>
           )}
         </motion.div>
 

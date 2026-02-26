@@ -118,3 +118,8 @@
 ## v4.4 修复（2026-02-26）
 - [x] 修复手机端登录成功后页面重定向失败（停在注册引导页）
 - [x] 修复管理后台调试模式开启后报错（event.updateConfig/admin/lottery/award改为publicProcedure）
+## v4.5 修复（2026-02-26）
+- [x] 整体字体放大（html font-size调为18px）
+- [x] 去掉签到时间限制（3月1日08:30才能签到的限制）
+- [x] 修复本地部署后注册/登录成功但无登录状态问题（cookies.ts中本地HTTP改用sameSite:lax）
+- [x] 修复未登录点击“我的”后点登录按钮报错（改为跳转/register）
