@@ -57,7 +57,7 @@ vi.mock("./db", () => ({
   saveLotteryResult: vi.fn().mockResolvedValue(undefined),
   saveTeamGroups: vi.fn().mockResolvedValue(undefined),
   getTeamGroups: vi.fn().mockResolvedValue([]),
-  getEventConfig: vi.fn().mockResolvedValue({ event_date: "2026-03-02", event_location: "中易物联集团总部" }),
+  getEventConfig: vi.fn().mockResolvedValue({ event_date: "2026-03-01", event_location: "中易物联集团总部", debug_mode: "true" }),
   updateEventConfig: vi.fn().mockResolvedValue(undefined),
   upsertUser: vi.fn().mockResolvedValue(undefined),
   getUserByOpenId: vi.fn().mockResolvedValue(undefined),

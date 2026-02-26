@@ -28,11 +28,14 @@ import {
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
-import { COOKIE_NAME } from "@shared/const";
+import { storagePut } from "./storage";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { broadcastToClients } from "./_core/index";
+import { sdk } from "./_core/sdk";
+import { getUserByOpenId, upsertUser } from "./db";
 
 export const appRouter = router({
   system: systemRouter,
@@ -43,6 +46,58 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    // 本地注册：手机号+姓名创建账号
+    localRegister: publicProcedure
+      .input(z.object({
+        phone: z.string().min(11).max(11),
+        name: z.string().min(1).max(50),
+        department: z.string().optional(),
+        position: z.string().optional(),
+        role: z.enum(["employee", "guest", "partner"]).default("employee"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // 以手机号作为 openId（加前缀区分本地用户）
+        const openId = `local_${input.phone}`;
+        let user = await getUserByOpenId(openId);
+        if (user) {
+          // 已注册，直接登录
+          const token = await sdk.createSessionToken(openId, { name: user.name || input.name });
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+          return { success: true, isNew: false, user };
+        }
+        // 创建新用户
+        await upsertUser({
+          openId,
+          name: input.name,
+          email: null,
+          loginMethod: "local",
+          lastSignedIn: new Date(),
+        });
+        user = await getUserByOpenId(openId);
+        if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "用户创建失败" });
+        // 创建 session
+        const token = await sdk.createSessionToken(openId, { name: input.name });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        return { success: true, isNew: true, user };
+      }),
+
+    // 本地登录：手机号登录
+    localLogin: publicProcedure
+      .input(z.object({
+        phone: z.string().min(11).max(11),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const openId = `local_${input.phone}`;
+        const user = await getUserByOpenId(openId);
+        if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "手机号未注册，请先注册" });
+        const token = await sdk.createSessionToken(openId, { name: user.name || "" });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        return { success: true, user };
+      }),
   }),
 
   // ===== 活动配置 =====
@@ -56,6 +111,24 @@ export const appRouter = router({
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await updateEventConfig(input.key, input.value);
         return { success: true };
+      }),
+  }),
+
+  // ===== 照片上传 =====
+  upload: router({
+    photo: protectedProcedure
+      .input(z.object({
+        base64: z.string(), // base64编码的图片数据
+        mimeType: z.string().default("image/jpeg"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // 将base64转为Buffer并上传到S3
+        const base64Data = input.base64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        const ext = input.mimeType.split("/")[1] || "jpg";
+        const key = `checkin-photos/${ctx.user.id}-${Date.now()}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url };
       }),
   }),
 
@@ -75,31 +148,32 @@ export const appRouter = router({
         z.object({
           department: z.string().optional(),
           message: z.string().optional(),
+          photoUrl: z.string().optional(), // 刷脸拍照上传后的照片URL
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // 检查调试模式
+        const config = await getEventConfig();
+        const isDebugMode = config["debug_mode"] === "true";
+
+        // 检查签到时间（调试模式下跳过）
+        if (!isDebugMode) {
+          const checkinOpenTime = new Date("2026-03-01T09:00:00+08:00");
+          if (new Date() < checkinOpenTime) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "签到尚未开放，请于2026年3月1日09:00后签到",
+            });
+          }
+        }
+
         // 检查是否已签到
         const existing = await getCheckinByUserId(ctx.user.id);
         if (existing) return { checkin: existing, isNew: false };
 
-        // 生成AI头像
-        let avatarUrl = "";
-        let avatarStyle = "ai-digital";
-        try {
-          const userName = ctx.user.name || "员工";
-          const result = await generateImage({
-            prompt: `Create a professional AI digital avatar for a tech company employee named ${userName}. 
-            Style: Elegant, futuristic, digital art. 
-            Features: Abstract geometric patterns, glowing blue/gold circuit elements, professional portrait style.
-            Background: Deep dark blue with subtle grid lines and particle effects.
-            The avatar should look sophisticated and high-tech, suitable for a corporate AI event.
-            No text, no watermarks. Square format, centered portrait.`,
-          });
-          avatarUrl = result.url || "";
-        } catch (e) {
-          console.error("Avatar generation failed:", e);
-          avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${ctx.user.id}&backgroundColor=0047AB`;
-        }
+        // 使用拍照的照片作为头像，无照片则使用默认头像
+        const avatarUrl = input.photoUrl || "";
+        const avatarStyle = "face-photo";
 
         const checkin = await createCheckin({
           userId: ctx.user.id,

@@ -30,6 +30,7 @@ export default function Admin() {
   const [groupCount, setGroupCount] = useState(3);
   const [groupResult, setGroupResult] = useState<{ groupName: string; members: string[]; color: string }[]>([]);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   const { data: checkins = [], refetch: refetchCheckins } = trpc.checkin.getAll.useQuery();
   const { data: awards = [] } = trpc.award.getAll.useQuery();
@@ -71,6 +72,17 @@ export default function Admin() {
     },
     onError: (e) => toast.error("初始化失败：" + e.message),
   });
+
+  const updateConfigMutation = trpc.event.updateConfig.useMutation({
+    onSuccess: () => {},
+    onError: (e) => toast.error("配置更新失败：" + e.message),
+  });
+
+  const handleToggleDebugMode = (enabled: boolean) => {
+    setDebugMode(enabled);
+    updateConfigMutation.mutate({ key: "debug_mode", value: enabled ? "true" : "false" });
+    toast.success(enabled ? "🔧 调试模式已开启，签到不受时间限制" : "✅ 调试模式已关闭，恢复正常时间限制");
+  };
 
   if (!isAuthenticated || user?.role !== "admin") {
     return (
@@ -188,6 +200,37 @@ export default function Admin() {
                   <button onClick={() => setActiveTab("awards")} className="py-2.5 px-3 rounded-lg glass-card text-white/70 text-xs font-medium">🏆 生成颁奖词</button>
                   <button onClick={() => setActiveTab("wishes")} className="py-2.5 px-3 rounded-lg glass-card text-white/70 text-xs font-medium">💌 查看心愿</button>
                 </div>
+              </div>
+
+              {/* 调试模式开关 */}
+              <div className="glass-card border-gold-glow rounded-xl p-4 mb-3">
+                <h3 className="text-white/70 text-xs font-medium mb-3 flex items-center gap-1.5">
+                  <span>🔧</span> 调试模式
+                </h3>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">签到时间限制</p>
+                    <p className="text-white/40 text-xs mt-0.5">
+                      {debugMode ? "🔓 已关闭时间限制，可随时测试签到" : "🔒 开启后用户不受时间限制"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleDebugMode(!debugMode)}
+                    className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
+                      debugMode ? "bg-yellow-500" : "bg-white/20"
+                    }`}
+                  >
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${
+                      debugMode ? "left-6" : "left-0.5"
+                    }`} />
+                  </button>
+                </div>
+                {debugMode && (
+                  <div className="mt-3 p-2 rounded-lg text-xs text-yellow-400/80 flex items-center gap-2" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.2)" }}>
+                    <span>⚠️</span>
+                    <span>调试模式已开启，所有用户可随时签到，活动开始前请关闭</span>
+                  </div>
+                )}
               </div>
 
               {/* 一键初始化 */}

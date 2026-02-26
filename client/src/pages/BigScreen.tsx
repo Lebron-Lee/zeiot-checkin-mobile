@@ -282,44 +282,31 @@ export default function BigScreen() {
       <div className="relative z-10 h-screen flex flex-col p-5">
 
         {/* 顶部栏 */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <img
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/roiHfLVdenSnZJDu.jpg"
-              alt="中易物联集团"
-              className="h-10 object-contain"
-              style={{ filter: "drop-shadow(0 0 10px rgba(255,215,0,0.5))" }}
-            />
-            <div>
-              <h1 className="text-xl font-bold text-gold-gradient" style={{ fontFamily: "'Noto Serif SC', serif" }}>
-                2026 开工盛典
-              </h1>
-              <p className="text-white/40 text-xs tracking-widest">AI智启·同心聚力·焕新出发</p>
-            </div>
-          </div>
-
-          {/* 签到进度 */}
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-gold-gradient">{checkinCount}</span>
-                <span className="text-white/40 text-sm">/ {totalSeats} 人已签到</span>
-              </div>
-              <div className="w-48 h-2 bg-white/10 rounded-full mt-1 overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: "linear-gradient(90deg, #e8001d, #ffd700)" }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPct}%` }}
-                  transition={{ duration: 0.8 }}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-green-300 text-xs">实时同步</span>
-            </div>
-            <LiveClock />
+        <div className="flex items-center justify-center gap-8 mb-4 py-2">
+          {/* Logo */}
+          <img
+            src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/roiHfLVdenSnZJDu.jpg"
+            alt="中易物联集团"
+            className="h-16 object-contain flex-shrink-0"
+            style={{ filter: "drop-shadow(0 0 14px rgba(255,215,0,0.6))" }}
+          />
+          {/* 分隔线 */}
+          <div className="w-px h-14 bg-gradient-to-b from-transparent via-yellow-400/50 to-transparent flex-shrink-0" />
+          {/* 标题横排 */}
+          <div className="flex items-baseline gap-5">
+            <h1
+              className="text-5xl font-bold text-gold-gradient tracking-wider"
+              style={{ fontFamily: "'Noto Serif SC', serif", textShadow: "0 0 30px rgba(255,215,0,0.5)" }}
+            >
+              2026 开工盛典
+            </h1>
+            <div className="w-px h-10 bg-gradient-to-b from-transparent via-yellow-400/40 to-transparent flex-shrink-0" />
+            <p
+              className="text-2xl font-semibold tracking-[0.25em] text-gold-gradient opacity-80"
+              style={{ fontFamily: "'Noto Serif SC', serif" }}
+            >
+              AI智启·同心聚力·焕新出发
+            </p>
           </div>
         </div>
 
