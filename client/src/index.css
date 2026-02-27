@@ -387,3 +387,9 @@
   min-width: 0;
   min-height: 0;
 }
+
+/* 弹幕心愿墙水平滚动动画 */
+@keyframes danmaku-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

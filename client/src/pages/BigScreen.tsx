@@ -179,65 +179,99 @@ function LotteryModal({ result, onClose }: { result: { winnerName: string; prize
 }
 
 // 飘动的心愿卡
-function FloatingWishCard({ card, index }: { card: WishCardRecord; index: number }) {
-  // 每张卡片有固定的随机初始位置和运动参数（用index做seed，保证稳定）
-  const seed = (index * 137 + 42) % 100;
-  const x = (seed * 7) % 80 + 5; // 5%~85%
-  const y = (seed * 13) % 70 + 5; // 5%~75%
-  const duration = 8 + (seed % 8); // 8~15秒
-  const delay = (seed % 6) * -1; // 0~-5秒（负delay让动画错开）
-  const driftX = ((seed * 3) % 40) - 20; // -20~20px
-  const driftY = ((seed * 5) % 30) - 15; // -15~15px
-  const rotate = ((seed * 2) % 12) - 6; // -6~6度
+// 弹幕心愿墙组件：多行水平滚动，各行速度不同
+const LANE_COUNT = 5;
+const LANE_SPEEDS = [28, 22, 35, 25, 30]; // 各行滚动周期（秒）
 
-  const wishColors: Record<string, string> = {
-    red: "from-red-900/80 to-red-700/60",
-    gold: "from-yellow-900/80 to-yellow-700/60",
-    purple: "from-purple-900/80 to-purple-700/60",
-    green: "from-green-900/80 to-green-700/60",
+function DanmakuWishWall({ cards, visible }: { cards: WishCardRecord[]; visible: boolean }) {
+  // 将卡片按序号分配到各行
+  const lanes: WishCardRecord[][] = Array.from({ length: LANE_COUNT }, () => []);
+  cards.forEach((card, i) => {
+    lanes[i % LANE_COUNT].push(card);
+  });
+
+  const wishColors: Record<string, { bg: string; border: string }> = {
+    red:    { bg: "rgba(139,0,0,0.75)",    border: "rgba(255,100,100,0.4)" },
+    gold:   { bg: "rgba(120,80,0,0.75)",   border: "rgba(255,215,0,0.4)" },
+    purple: { bg: "rgba(80,0,120,0.75)",   border: "rgba(180,100,255,0.4)" },
+    green:  { bg: "rgba(0,80,40,0.75)",    border: "rgba(100,220,130,0.4)" },
   };
-  const colorClass = wishColors[card.color || "red"] || wishColors.red;
 
   return (
-    <motion.div
-      className={`absolute w-44 rounded-xl p-3 bg-gradient-to-br ${colorClass} border border-yellow-400/25 cursor-default`}
-      style={{
-        left: `${x}%`,
-        top: `${y}%`,
-        rotate: `${rotate}deg`,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-        zIndex: index % 3 + 1,
-      }}
-      animate={{
-        x: [0, driftX, -driftX / 2, driftX / 3, 0],
-        y: [0, driftY, -driftY / 2, driftY / 3, 0],
-        rotate: [rotate, rotate + 2, rotate - 1, rotate + 1, rotate],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
-      initial={{ opacity: 0, scale: 0.5 }}
-      whileInView={{ opacity: 1, scale: 1 }}
+    <div
+      className="absolute inset-0 overflow-hidden"
+      style={{ visibility: visible ? "visible" : "hidden", pointerEvents: visible ? "auto" : "none" }}
     >
-      {/* 用户头像 */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border border-yellow-400/30">
-          {card.userAvatar ? (
-            <img src={card.userAvatar} alt={card.userName} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-yellow-400"
-              style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
-              {card.userName.slice(0, 1)}
-            </div>
-          )}
+      {cards.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-white/30">
+          <div className="text-4xl mb-2">✨</div>
+          <p className="text-sm">等待员工写下心愿...</p>
         </div>
-        <span className="text-yellow-400/70 text-[10px] truncate">{card.userName}</span>
-      </div>
-      <p className="text-white/90 text-xs leading-relaxed line-clamp-3">"{card.content}"</p>
-    </motion.div>
+      ) : (
+        lanes.map((laneCards, laneIdx) => {
+          if (laneCards.length === 0) return null;
+          const speed = LANE_SPEEDS[laneIdx];
+          // 每行内卡片重复两遍以确保无缝滚动
+          const doubled = [...laneCards, ...laneCards];
+          return (
+            <div
+              key={laneIdx}
+              className="absolute w-full flex items-center gap-4"
+              style={{
+                top: `${laneIdx * 20 + 2}%`,
+                height: "18%",
+              }}
+            >
+              <div
+                className="flex gap-4 items-center"
+                style={{
+                  animation: `danmaku-scroll ${speed}s linear infinite`,
+                  animationDelay: `${-laneIdx * (speed / LANE_COUNT)}s`,
+                  willChange: "transform",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {doubled.map((card, ci) => {
+                  const colors = wishColors[card.color || "red"] || wishColors.red;
+                  return (
+                    <div
+                      key={`${card.id}-${ci}`}
+                      className="inline-flex flex-col rounded-xl p-3 flex-shrink-0"
+                      style={{
+                        width: "180px",
+                        background: colors.bg,
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+                        backdropFilter: "blur(8px)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border border-yellow-400/40">
+                          {card.userAvatar ? (
+                            <img src={card.userAvatar} alt={card.userName} className="w-full h-full object-cover" />
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center text-[10px] font-bold text-yellow-300"
+                              style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}
+                            >
+                              {card.userName.slice(0, 1)}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-yellow-300/80 text-[10px] truncate font-medium">{card.userName}</span>
+                      </div>
+                      <p className="text-white/90 text-xs leading-relaxed" style={{ whiteSpace: "normal", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        “{card.content}”
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
   );
 }
 
@@ -603,7 +637,21 @@ export default function BigScreen() {
             </div>
 
             {/* 内容区 */}
-            <div className="flex-1 glass-card border-red-glow rounded-2xl p-4 overflow-hidden corner-frame">
+            <div className="flex-1 glass-card border-red-glow rounded-2xl p-4 overflow-hidden corner-frame relative">
+              {/* 心愿墙弹幕——始终渲染，用 visibility 控制显隐，页签切换后动画不中断 */}
+              <div
+                className="absolute inset-4"
+                style={{ visibility: activeTab === "wish" ? "visible" : "hidden", zIndex: activeTab === "wish" ? 1 : 0 }}
+              >
+                <div className="text-white/50 text-xs mb-2 flex items-center gap-2">
+                  <span>✨</span>
+                  <span>员工心愿墙（{wishCards.length}张）</span>
+                </div>
+                <div className="relative overflow-hidden" style={{ height: "calc(100% - 28px)" }}>
+                  <DanmakuWishWall cards={wishCards} visible={activeTab === "wish"} />
+                </div>
+              </div>
+
               <AnimatePresence mode="wait">
 
                 {/* 实时签到动态（自动滚动） */}
@@ -613,7 +661,7 @@ export default function BigScreen() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full flex flex-col"
+                    className="h-full flex flex-col relative z-10"
                   >
                     <div className="text-white/50 text-xs mb-3 flex items-center gap-2 flex-shrink-0">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -622,34 +670,6 @@ export default function BigScreen() {
                     <div className="flex-1 min-h-0">
                       <AutoScrollCheckinList checkins={recentCheckins} />
                     </div>
-                  </motion.div>
-                )}
-
-                {/* 心愿墙（随机飘动） */}
-                {activeTab === "wish" && (
-                  <motion.div
-                    key="wish"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="h-full relative"
-                  >
-                    <div className="text-white/50 text-xs mb-2 flex items-center gap-2">
-                      <span>✨</span>
-                      <span>员工心愿墙（{wishCards.length}张）</span>
-                    </div>
-                    {wishCards.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-[calc(100%-28px)] text-white/30">
-                        <div className="text-4xl mb-2">✨</div>
-                        <p className="text-sm">等待员工写下心愿...</p>
-                      </div>
-                    ) : (
-                      <div className="relative h-[calc(100%-28px)] overflow-hidden">
-                        {wishCards.map((w, i) => (
-                          <FloatingWishCard key={w.id} card={w} index={i} />
-                        ))}
-                      </div>
-                    )}
                   </motion.div>
                 )}
 
