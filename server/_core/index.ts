@@ -8,6 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { seedQuizQuestionsIfEmpty } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -82,8 +83,14 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // 自动初始AI问答种子数据（本地部署时确保有题目）
+    try {
+      await seedQuizQuestionsIfEmpty();
+    } catch (e) {
+      console.warn("[DB] Failed to seed quiz questions:", e);
+    }
   });
 }
 

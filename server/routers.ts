@@ -214,9 +214,12 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // 从签到记录获取用户头像
+        const checkin = await getCheckinByUserId(ctx.user.id);
         const card = await createWishCard({
           userId: ctx.user.id,
           userName: ctx.user.name || "匿名员工",
+          userAvatar: checkin?.avatarUrl || null,
           content: input.content,
           category: input.category,
           color: input.color || "#FFD700",

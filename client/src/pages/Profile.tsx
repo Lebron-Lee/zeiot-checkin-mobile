@@ -69,13 +69,13 @@ export default function Profile() {
         </motion.div>
 
         {/* 参与统计 */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-3 gap-3 mb-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-2 gap-3 mb-6">
           <div className="glass-card rounded-xl p-3 text-center">
             <CheckCircle2 className={`mx-auto mb-1 ${myCheckin ? "text-green-400" : "text-white/20"}`} size={20} />
             <p className="text-white/80 text-xs font-medium">{myCheckin ? "已签到" : "未签到"}</p>
             <p className="text-white/30 text-[10px] mt-0.5">AI签到</p>
           </div>
-          <div className="glass-card rounded-xl p-3 text-center">
+          <div className="glass-card rounded-xl p-3 text-center hidden">
             <Brain className="text-yellow-400 mx-auto mb-1" size={20} />
             <p className="text-gold-gradient text-sm font-bold">¥{myScore || 0}</p>
             <p className="text-white/30 text-[10px] mt-0.5">问答红包</p>
@@ -128,9 +128,7 @@ export default function Profile() {
               立即AI签到
             </button>
           )}
-          <button onClick={() => navigate("/quiz")} className="w-full py-3 rounded-xl border border-yellow-400/30 text-yellow-400/80 text-sm hover:bg-yellow-400/5 transition-all">
-            参与AI问答赢红包
-          </button>
+          {/* 问答红包按钮已隐藏 */}
           <button onClick={() => navigate("/wish")} className="w-full py-3 rounded-xl border border-pink-400/30 text-pink-400/80 text-sm hover:bg-pink-400/5 transition-all">
             填写心愿卡
           </button>

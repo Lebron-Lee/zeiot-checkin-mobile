@@ -1,0 +1,1 @@
+ALTER TABLE `wish_cards` ADD `userAvatar` varchar(500);

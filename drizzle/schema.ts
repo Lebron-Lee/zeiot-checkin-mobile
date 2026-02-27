@@ -44,6 +44,7 @@ export const wishCards = mysqlTable("wish_cards", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   userName: varchar("userName", { length: 100 }).notNull(),
+  userAvatar: varchar("userAvatar", { length: 500 }),
   content: text("content").notNull(),
   category: mysqlEnum("category", ["career", "team", "personal", "company"]).default("personal").notNull(),
   color: varchar("color", { length: 20 }).default("#FFD700"),

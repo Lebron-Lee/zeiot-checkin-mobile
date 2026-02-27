@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useWebSocket, WSMessage } from "@/hooks/useWebSocket";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +16,7 @@ type CheckinRecord = {
 type WishCardRecord = {
   id: number;
   userName: string;
+  userAvatar?: string | null;
   content: string;
   color?: string | null;
   createdAt: Date;
@@ -59,17 +60,12 @@ function FestiveBigScreenBg() {
           }}
         />
       ))}
-      {/* 科技网格 */}
       <div className="absolute inset-0 bg-tech-grid opacity-30" />
-      {/* 扫描线 */}
       <div className="absolute inset-0 scan-overlay" />
-      {/* 顶部光晕 */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-64 rounded-full opacity-15"
         style={{ background: "radial-gradient(ellipse, rgba(232,0,29,0.9) 0%, transparent 70%)" }} />
-      {/* 左下角光晕 */}
       <div className="absolute bottom-0 left-0 w-96 h-64 rounded-full opacity-10"
         style={{ background: "radial-gradient(ellipse, rgba(255,215,0,0.8) 0%, transparent 70%)" }} />
-      {/* 右下角光晕 */}
       <div className="absolute bottom-0 right-0 w-96 h-64 rounded-full opacity-10"
         style={{ background: "radial-gradient(ellipse, rgba(255,215,0,0.8) 0%, transparent 70%)" }} />
     </div>
@@ -182,6 +178,165 @@ function LotteryModal({ result, onClose }: { result: { winnerName: string; prize
   );
 }
 
+// 飘动的心愿卡
+function FloatingWishCard({ card, index }: { card: WishCardRecord; index: number }) {
+  // 每张卡片有固定的随机初始位置和运动参数（用index做seed，保证稳定）
+  const seed = (index * 137 + 42) % 100;
+  const x = (seed * 7) % 80 + 5; // 5%~85%
+  const y = (seed * 13) % 70 + 5; // 5%~75%
+  const duration = 8 + (seed % 8); // 8~15秒
+  const delay = (seed % 6) * -1; // 0~-5秒（负delay让动画错开）
+  const driftX = ((seed * 3) % 40) - 20; // -20~20px
+  const driftY = ((seed * 5) % 30) - 15; // -15~15px
+  const rotate = ((seed * 2) % 12) - 6; // -6~6度
+
+  const wishColors: Record<string, string> = {
+    red: "from-red-900/80 to-red-700/60",
+    gold: "from-yellow-900/80 to-yellow-700/60",
+    purple: "from-purple-900/80 to-purple-700/60",
+    green: "from-green-900/80 to-green-700/60",
+  };
+  const colorClass = wishColors[card.color || "red"] || wishColors.red;
+
+  return (
+    <motion.div
+      className={`absolute w-44 rounded-xl p-3 bg-gradient-to-br ${colorClass} border border-yellow-400/25 cursor-default`}
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        rotate: `${rotate}deg`,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+        zIndex: index % 3 + 1,
+      }}
+      animate={{
+        x: [0, driftX, -driftX / 2, driftX / 3, 0],
+        y: [0, driftY, -driftY / 2, driftY / 3, 0],
+        rotate: [rotate, rotate + 2, rotate - 1, rotate + 1, rotate],
+      }}
+      transition={{
+        duration,
+        delay,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+      initial={{ opacity: 0, scale: 0.5 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+    >
+      {/* 用户头像 */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border border-yellow-400/30">
+          {card.userAvatar ? (
+            <img src={card.userAvatar} alt={card.userName} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-yellow-400"
+              style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
+              {card.userName.slice(0, 1)}
+            </div>
+          )}
+        </div>
+        <span className="text-yellow-400/70 text-[10px] truncate">{card.userName}</span>
+      </div>
+      <p className="text-white/90 text-xs leading-relaxed line-clamp-3">"{card.content}"</p>
+    </motion.div>
+  );
+}
+
+// 签到动态自动滚动列表
+function AutoScrollCheckinList({ checkins }: { checkins: CheckinRecord[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [displayList, setDisplayList] = useState<CheckinRecord[]>([]);
+
+  // 每次checkins更新时，将新签到加到列表顶部
+  useEffect(() => {
+    setDisplayList([...checkins]);
+  }, [checkins]);
+
+  // 自动向上滚动
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || displayList.length === 0) return;
+    let animId: number;
+    let lastTime = 0;
+    const speed = 0.4; // px/ms
+
+    const scroll = (timestamp: number) => {
+      if (!lastTime) lastTime = timestamp;
+      const delta = timestamp - lastTime;
+      lastTime = timestamp;
+      container.scrollTop += speed * delta;
+      // 当滚动到底部时，无缝回到顶部
+      if (container.scrollTop >= container.scrollHeight - container.clientHeight - 2) {
+        container.scrollTop = 0;
+      }
+      animId = requestAnimationFrame(scroll);
+    };
+
+    // 有足够内容才滚动
+    if (container.scrollHeight > container.clientHeight + 10) {
+      animId = requestAnimationFrame(scroll);
+    }
+
+    return () => cancelAnimationFrame(animId);
+  }, [displayList]);
+
+  if (displayList.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-white/30">
+        <div className="text-4xl mb-3">🎯</div>
+        <p className="text-sm">等待员工签到...</p>
+      </div>
+    );
+  }
+
+  // 复制一份用于无缝循环
+  const loopList = displayList.length < 6 ? [...displayList, ...displayList] : displayList;
+
+  return (
+    <div
+      ref={containerRef}
+      className="h-full overflow-hidden"
+      style={{ scrollbarWidth: "none" }}
+    >
+      <div className="space-y-2 pb-2">
+        {loopList.map((c, i) => (
+          <div
+            key={`${c.id}-${i}`}
+            className="flex items-center gap-3 p-3 rounded-xl"
+            style={{ background: "rgba(139,26,26,0.3)", border: "1px solid rgba(255,215,0,0.15)" }}
+          >
+            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
+              style={{ border: "1px solid rgba(255,215,0,0.4)" }}>
+              {c.avatarUrl ? (
+                <img src={c.avatarUrl} alt={c.userName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
+                  <span className="text-white font-bold text-sm">{c.userName.slice(0, 1)}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-white font-semibold text-sm">{c.userName}</span>
+                {c.department && <span className="text-yellow-400/60 text-xs">{c.department}</span>}
+              </div>
+              {c.message && <p className="text-white/50 text-xs truncate mt-0.5">"{c.message}"</p>}
+            </div>
+            <div className="text-white/30 text-xs flex-shrink-0">
+              {/* 使用本地时间显示，避免UTC偏差 */}
+              {new Date(c.checkedInAt).toLocaleTimeString("zh-CN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function BigScreen() {
   const [activeTab, setActiveTab] = useState<"checkin" | "wish" | "group">("checkin");
   const [checkins, setCheckins] = useState<CheckinRecord[]>([]);
@@ -190,6 +345,8 @@ export default function BigScreen() {
   const [awardModal, setAwardModal] = useState<{ awardName: string; winnerName: string; speech: string } | null>(null);
   const [lotteryModal, setLotteryModal] = useState<{ winnerName: string; prizeName: string; prizeAmount?: number } | null>(null);
   const [recentCheckins, setRecentCheckins] = useState<CheckinRecord[]>([]);
+  // 是否暂停自动切换（手动选分组时暂停）
+  const [autoPaused, setAutoPaused] = useState(false);
   const autoTabRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 数据查询
@@ -200,7 +357,7 @@ export default function BigScreen() {
   useEffect(() => {
     if (checkinData) {
       setCheckins(checkinData as CheckinRecord[]);
-      setRecentCheckins((checkinData as CheckinRecord[]).slice(-10).reverse());
+      setRecentCheckins((checkinData as CheckinRecord[]).slice(-15).reverse());
     }
   }, [checkinData]);
 
@@ -208,13 +365,34 @@ export default function BigScreen() {
     if (wishData) setWishCards(wishData as WishCardRecord[]);
   }, [wishData]);
 
-  // 自动切换标签
-  useEffect(() => {
+  // 自动切换标签：只在 checkin ↔ wish 之间切换，暂停时停止
+  const startAutoSwitch = useCallback(() => {
+    if (autoTabRef.current) clearInterval(autoTabRef.current);
     autoTabRef.current = setInterval(() => {
-      setActiveTab(prev => prev === "checkin" ? "wish" : prev === "wish" ? "group" : "checkin");
+      setActiveTab(prev => prev === "checkin" ? "wish" : "checkin");
     }, 12000);
-    return () => { if (autoTabRef.current) clearInterval(autoTabRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (!autoPaused) {
+      startAutoSwitch();
+    } else {
+      if (autoTabRef.current) clearInterval(autoTabRef.current);
+    }
+    return () => { if (autoTabRef.current) clearInterval(autoTabRef.current); };
+  }, [autoPaused, startAutoSwitch]);
+
+  // 手动点击标签
+  const handleTabClick = (tab: "checkin" | "wish" | "group") => {
+    setActiveTab(tab);
+    if (tab === "group") {
+      // 手动选分组：暂停自动切换
+      setAutoPaused(true);
+    } else {
+      // 手动选签到/心愿墙：恢复自动切换
+      setAutoPaused(false);
+    }
+  };
 
   // WebSocket
   const handleWsMessage = useCallback((msg: WSMessage) => {
@@ -226,7 +404,9 @@ export default function BigScreen() {
         return [...prev, d];
       });
       setRecentCheckins(prev => [d, ...prev].slice(0, 15));
+      // 新签到时切换到签到tab并恢复自动切换
       setActiveTab("checkin");
+      setAutoPaused(false);
     }
     if (msg.type === "NEW_WISH_CARD" && msg.data) {
       const d = msg.data as WishCardRecord;
@@ -235,7 +415,10 @@ export default function BigScreen() {
         if (exists) return prev;
         return [d, ...prev];
       });
-      setTimeout(() => setActiveTab("wish"), 2000);
+      setTimeout(() => {
+        setActiveTab("wish");
+        setAutoPaused(false);
+      }, 2000);
     }
     if (msg.type === "AWARD_SPEECH" && msg.data) {
       const d = msg.data as { awardName: string; winnerName: string; speech: string };
@@ -249,6 +432,7 @@ export default function BigScreen() {
       const d = msg.data as GroupResult[];
       setGroups(d);
       setActiveTab("group");
+      setAutoPaused(true); // 新分组结果推送时也暂停自动切换
     }
   }, []);
 
@@ -256,20 +440,12 @@ export default function BigScreen() {
 
   const totalSeats = Number(config?.total_seats) || 25;
   const checkinCount = checkins.length;
-  const progressPct = Math.min(100, Math.round((checkinCount / totalSeats) * 100));
 
   // 头像网格（5×5）
   const gridCells = Array.from({ length: totalSeats }, (_, i) => {
     const pos = i + 1;
     return checkins.find(c => c.gridPosition === pos) || null;
   });
-
-  const wishColors: Record<string, string> = {
-    red: "from-red-900/70 to-red-700/50",
-    gold: "from-yellow-900/70 to-yellow-700/50",
-    purple: "from-purple-900/70 to-purple-700/50",
-    green: "from-green-900/70 to-green-700/50",
-  };
 
   return (
     <div className="min-h-screen bg-bigscreen-gradient relative overflow-hidden">
@@ -283,16 +459,13 @@ export default function BigScreen() {
 
         {/* 顶部栏 */}
         <div className="flex items-center justify-center gap-8 mb-4 py-2">
-          {/* Logo */}
           <img
             src="https://files.manuscdn.com/user_upload_by_module/session_file/309964133946657044/roiHfLVdenSnZJDu.jpg"
             alt="中易物联集团"
             className="h-16 object-contain flex-shrink-0"
             style={{ filter: "drop-shadow(0 0 14px rgba(255,215,0,0.6))" }}
           />
-          {/* 分隔线 */}
           <div className="w-px h-14 bg-gradient-to-b from-transparent via-yellow-400/50 to-transparent flex-shrink-0" />
-          {/* 标题横排 */}
           <div className="flex items-baseline gap-5">
             <h1
               className="text-5xl font-bold text-gold-gradient tracking-wider"
@@ -328,12 +501,8 @@ export default function BigScreen() {
                   key={i}
                   className="aspect-square rounded-xl overflow-hidden flex items-center justify-center relative"
                   style={{
-                    background: cell
-                      ? "transparent"
-                      : "rgba(139,26,26,0.3)",
-                    border: cell
-                      ? "1px solid rgba(255,215,0,0.5)"
-                      : "1px solid rgba(255,215,0,0.12)",
+                    background: cell ? "transparent" : "rgba(139,26,26,0.3)",
+                    border: cell ? "1px solid rgba(255,215,0,0.5)" : "1px solid rgba(255,215,0,0.12)",
                   }}
                   initial={cell ? { scale: 0, opacity: 0 } : {}}
                   animate={cell ? { scale: 1, opacity: 1 } : {}}
@@ -349,7 +518,6 @@ export default function BigScreen() {
                           <span className="text-white font-bold text-sm">{cell.userName.slice(0, 1)}</span>
                         </div>
                       )}
-                      {/* 签到成功发光效果 */}
                       <motion.div
                         className="absolute inset-0 rounded-xl"
                         initial={{ opacity: 1 }}
@@ -369,121 +537,79 @@ export default function BigScreen() {
           {/* 右侧：标签内容区 */}
           <div className="flex-1 flex flex-col min-w-0">
             {/* 标签切换 */}
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 items-center">
               {[
-                { key: "checkin", label: "✦ 实时签到", icon: "🎯" },
-                { key: "wish", label: "✧ 心愿墙", icon: "✨" },
-                { key: "group", label: "◈ 分组结果", icon: "👥" },
+                { key: "checkin", label: "实时签到", icon: "🎯" },
+                { key: "wish", label: "心愿墙", icon: "✨" },
+                { key: "group", label: "分组结果", icon: "👥" },
               ].map(tab => (
                 <button
                   key={tab.key}
-                  onClick={() => {
-                    setActiveTab(tab.key as "checkin" | "wish" | "group");
-                    if (autoTabRef.current) clearInterval(autoTabRef.current);
-                  }}
+                  onClick={() => handleTabClick(tab.key as "checkin" | "wish" | "group")}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                     activeTab === tab.key
                       ? "btn-festive text-white"
                       : "glass-card text-white/60 hover:text-white/90"
                   }`}
                 >
-                  {tab.icon} {tab.label.replace(/[✦✧◈] /, "")}
+                  {tab.icon} {tab.label}
                 </button>
               ))}
+              {/* 自动切换状态指示 */}
+              <div className="ml-auto flex items-center gap-1.5 text-xs">
+                <div className={`w-1.5 h-1.5 rounded-full ${autoPaused ? "bg-yellow-400/50" : "bg-green-400 animate-pulse"}`} />
+                <span className="text-white/30">{autoPaused ? "手动模式" : "自动切换"}</span>
+              </div>
             </div>
 
             {/* 内容区 */}
             <div className="flex-1 glass-card border-red-glow rounded-2xl p-4 overflow-hidden corner-frame">
               <AnimatePresence mode="wait">
 
-                {/* 实时签到动态 */}
+                {/* 实时签到动态（自动滚动） */}
                 {activeTab === "checkin" && (
                   <motion.div
                     key="checkin"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full"
+                    className="h-full flex flex-col"
                   >
-                    <div className="text-white/50 text-xs mb-3 flex items-center gap-2">
+                    <div className="text-white/50 text-xs mb-3 flex items-center gap-2 flex-shrink-0">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                      实时签到动态
+                      实时签到动态（{recentCheckins.length}人已签到）
                     </div>
-                    <div className="space-y-2 overflow-y-auto h-[calc(100%-28px)]">
-                      {recentCheckins.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-white/30">
-                          <div className="text-4xl mb-3">🎯</div>
-                          <p className="text-sm">等待员工签到...</p>
-                        </div>
-                      ) : (
-                        recentCheckins.map((c, i) => (
-                          <motion.div
-                            key={c.id}
-                            initial={{ opacity: 0, x: 30 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.05 }}
-                            className="flex items-center gap-3 p-3 rounded-xl"
-                            style={{ background: "rgba(139,26,26,0.3)", border: "1px solid rgba(255,215,0,0.15)" }}
-                          >
-                            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
-                              style={{ border: "1px solid rgba(255,215,0,0.4)" }}>
-                              {c.avatarUrl ? (
-                                <img src={c.avatarUrl} alt={c.userName} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center"
-                                  style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
-                                  <span className="text-white font-bold text-sm">{c.userName.slice(0, 1)}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-white font-semibold text-sm">{c.userName}</span>
-                                {c.department && <span className="text-yellow-400/60 text-xs">{c.department}</span>}
-                              </div>
-                              {c.message && <p className="text-white/50 text-xs truncate mt-0.5">"{c.message}"</p>}
-                            </div>
-                            <div className="text-white/30 text-xs flex-shrink-0">
-                              {new Date(c.checkedInAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
+                    <div className="flex-1 min-h-0">
+                      <AutoScrollCheckinList checkins={recentCheckins} />
                     </div>
                   </motion.div>
                 )}
 
-                {/* 心愿墙 */}
+                {/* 心愿墙（随机飘动） */}
                 {activeTab === "wish" && (
                   <motion.div
                     key="wish"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full"
+                    className="h-full relative"
                   >
-                    <div className="text-white/50 text-xs mb-3">✨ 员工心愿墙</div>
-                    <div className="grid grid-cols-3 gap-2 overflow-y-auto h-[calc(100%-28px)]">
-                      {wishCards.length === 0 ? (
-                        <div className="col-span-3 flex flex-col items-center justify-center h-32 text-white/30">
-                          <div className="text-4xl mb-2">✨</div>
-                          <p className="text-sm">等待员工写下心愿...</p>
-                        </div>
-                      ) : (
-                        wishCards.map((w, i) => (
-                          <motion.div
-                            key={w.id}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.05 }}
-                            className={`p-3 rounded-xl bg-gradient-to-br ${wishColors[w.color || "red"] || wishColors.red} border border-yellow-400/20`}
-                          >
-                            <p className="text-white/90 text-xs leading-relaxed mb-2 line-clamp-3">"{w.content}"</p>
-                            <p className="text-yellow-400/60 text-[10px]">— {w.userName}</p>
-                          </motion.div>
-                        ))
-                      )}
+                    <div className="text-white/50 text-xs mb-2 flex items-center gap-2">
+                      <span>✨</span>
+                      <span>员工心愿墙（{wishCards.length}张）</span>
                     </div>
+                    {wishCards.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-[calc(100%-28px)] text-white/30">
+                        <div className="text-4xl mb-2">✨</div>
+                        <p className="text-sm">等待员工写下心愿...</p>
+                      </div>
+                    ) : (
+                      <div className="relative h-[calc(100%-28px)] overflow-hidden">
+                        {wishCards.map((w, i) => (
+                          <FloatingWishCard key={w.id} card={w} index={i} />
+                        ))}
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
