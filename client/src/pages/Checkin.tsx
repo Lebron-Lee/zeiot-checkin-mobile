@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Camera, CheckCircle2, RotateCcw, Scan, Loader2, UserCircle2, Upload } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, RotateCcw, Scan, Loader2, UserCircle2 } from "lucide-react";
 
 const MESSAGES = [
   "2026，AI赋能，乘风破浪！",
@@ -16,7 +16,7 @@ const MESSAGES = [
 
 const DEPARTMENTS = ["技术研发部", "产品运营部", "市场营销部", "行政人事部", "财务部", "销售部", "其他"];
 
-// AI扫描线动画覆盖层
+// AI扫描线动画覆盖层（用于预览步骤的模拟识别）
 function AIScanOverlay({ scanning }: { scanning: boolean }) {
   if (!scanning) return null;
   return (
@@ -75,7 +75,6 @@ function FaceDetectedOverlay({ show }: { show: boolean }) {
   return (
     <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center rounded-2xl overflow-hidden">
       <div className="absolute inset-0" style={{ background: "rgba(0,255,150,0.08)" }} />
-      {/* 成功框 */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -107,19 +106,16 @@ function FaceDetectedOverlay({ show }: { show: boolean }) {
 export default function Checkin() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated } = useAuth();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<"form" | "camera" | "preview" | "uploading" | "submitting" | "success">("form");
+  // step: form → scanning（AI模拟扫描）→ preview → uploading → submitting → success
+  const [step, setStep] = useState<"form" | "scanning" | "preview" | "uploading" | "submitting" | "success">("form");
   const [department, setDepartment] = useState("");
   const [message, setMessage] = useState(MESSAGES[0]);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [checkinResult, setCheckinResult] = useState<{ avatarUrl?: string; userName?: string } | null>(null);
-  const [cameraFailed, setCameraFailed] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: myCheckin } = trpc.checkin.getMyCheckin.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -138,54 +134,8 @@ export default function Checkin() {
     },
   });
 
-  // 打开摄像头
-  const openCamera = useCallback(async () => {
-    // 检查是否支持 getUserMedia
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraFailed(true);
-      toast.error("当前环境不支持摄像头，请使用文件上传方式签到");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 640 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      setCameraFailed(false);
-      setStep("camera");
-      setScanning(true);
-      setFaceDetected(false);
-      // 等待video元素挂载后设置srcObject
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(console.error);
-        }
-        // 模拟AI人脸识别过程（2.5秒后显示识别成功）
-        setTimeout(() => {
-          setScanning(false);
-          setFaceDetected(true);
-        }, 2500);
-      }, 100);
-    } catch (err: unknown) {
-      console.error("Camera error:", err);
-      const errName = (err as { name?: string })?.name;
-      if (errName === "NotAllowedError" || errName === "PermissionDeniedError") {
-        toast.error("摄像头权限被拒绝，请在浏览器设置中允许访问摄像头，或使用照片上传方式签到");
-      } else if (errName === "NotFoundError" || errName === "DevicesNotFoundError") {
-        toast.error("未找到摄像头设备，请使用照片上传方式签到");
-      } else if (errName === "NotSupportedError" || errName === "InsecureContextError") {
-        toast.error("当前页面不支持摄像头（需要HTTPS），请使用照片上传方式签到");
-      } else {
-        toast.error("无法访问摄像头，请检查权限设置或使用照片上传方式签到");
-      }
-      setCameraFailed(true);
-    }
-  }, []);
-
-  // 文件上传方式（降级方案）
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理拍照/选图后的文件
+  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -195,54 +145,41 @@ export default function Checkin() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
-      if (dataUrl) {
-        setPhotoDataUrl(dataUrl);
-        setStep("preview");
-      }
+      if (!dataUrl) return;
+      setPhotoDataUrl(dataUrl);
+      // 进入AI扫描动画步骤
+      setStep("scanning");
+      setScanning(true);
+      setFaceDetected(false);
+      // 模拟AI人脸识别：2.5秒后显示识别成功，再0.8秒后跳转预览
+      setTimeout(() => {
+        setScanning(false);
+        setFaceDetected(true);
+        setTimeout(() => {
+          setStep("preview");
+          setFaceDetected(false);
+        }, 800);
+      }, 2500);
     };
     reader.readAsDataURL(file);
+    // 重置input，允许重复选择同一文件
+    e.target.value = "";
   }, []);
 
-  // 关闭摄像头
-  const closeCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setStep("form");
-    setScanning(false);
-    setFaceDetected(false);
-  }, []);
-
-  // 拍照
-  const takePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const size = Math.min(video.videoWidth, video.videoHeight);
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    // 居中裁剪为正方形
-    const offsetX = (video.videoWidth - size) / 2;
-    const offsetY = (video.videoHeight - size) / 2;
-    ctx.drawImage(video, offsetX, offsetY, size, size, 0, 0, size, size);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-    setPhotoDataUrl(dataUrl);
-    // 关闭摄像头
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setStep("preview");
+  // 触发拍照（前置摄像头）
+  const openCamera = useCallback(() => {
+    cameraInputRef.current?.click();
   }, []);
 
   // 重拍
   const retakePhoto = useCallback(() => {
     setPhotoDataUrl(null);
-    openCamera();
-  }, [openCamera]);
+    setStep("form");
+    setScanning(false);
+    setFaceDetected(false);
+    // 稍微延迟后再次触发，确保input已重置
+    setTimeout(() => cameraInputRef.current?.click(), 100);
+  }, []);
 
   // 提交签到
   const handleCheckin = useCallback(async () => {
@@ -286,7 +223,7 @@ export default function Checkin() {
             </motion.div>
             <h2 className="text-2xl font-bold text-gold-gradient mb-2">请先注册登录</h2>
             <p className="text-white/50 text-sm text-center mb-8 leading-relaxed">
-              参与签到需要先完成注册，<br />注册后即可刷脸签到并显示在大屏上
+              参与签到需要先完成注册，<br />注册后即可拍照签到并显示在大屏上
             </p>
             <button
               onClick={() => navigate("/register")}
@@ -359,13 +296,23 @@ export default function Checkin() {
   return (
     <div className="min-h-screen bg-festive-gradient flex flex-col">
       <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
-      <canvas ref={canvasRef} className="hidden" />
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+
+      {/* 隐藏的文件输入：capture="user" 调起前置摄像头，也允许从相册选图 */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
 
       <div className="max-w-md mx-auto px-5 py-6 flex flex-col flex-1">
-        <button onClick={() => step === "camera" ? closeCamera() : navigate("/")}
-          className="flex items-center gap-2 text-white/50 hover:text-white/80 mb-6 transition-colors">
-          <ArrowLeft size={16} /><span className="text-sm">{step === "camera" ? "取消拍照" : "返回首页"}</span>
+        <button
+          onClick={() => { if (step === "scanning" || step === "preview") { setStep("form"); setPhotoDataUrl(null); } else navigate("/"); }}
+          className="flex items-center gap-2 text-white/50 hover:text-white/80 mb-6 transition-colors"
+        >
+          <ArrowLeft size={16} /><span className="text-sm">{(step === "scanning" || step === "preview") ? "重新拍照" : "返回首页"}</span>
         </button>
 
         <AnimatePresence mode="wait">
@@ -379,8 +326,8 @@ export default function Checkin() {
                   <Scan className="text-yellow-400" size={36} />
                   <div className="absolute inset-0 rounded-full border border-yellow-400/20 animate-ping" style={{ animationDuration: "2s" }} />
                 </div>
-                <h1 className="text-2xl font-bold text-gold-gradient mb-1">刷脸签到</h1>
-                <p className="text-white/50 text-sm">AI人脸识别，照片实时显示在大屏</p>
+                <h1 className="text-2xl font-bold text-gold-gradient mb-1">AI刷脸签到</h1>
+                <p className="text-white/50 text-sm">拍照后AI自动识别，照片实时显示在大屏</p>
               </div>
 
               {/* 用户信息 */}
@@ -391,7 +338,7 @@ export default function Checkin() {
                   </div>
                   <div>
                     <p className="text-white/90 font-medium">{user?.name || "员工"}</p>
-                    <p className="text-white/40 text-xs">已登录 · 点击下方按钮开始签到</p>
+                    <p className="text-white/40 text-xs">已登录 · 点击下方按钮拍照签到</p>
                   </div>
                 </div>
               </div>
@@ -430,74 +377,41 @@ export default function Checkin() {
                 </div>
               </div>
 
-              {/* 开始刷脸按钮 */}
+              {/* 拍照签到按钮 */}
               <button onClick={openCamera} className="w-full py-4 rounded-2xl font-bold text-lg relative overflow-hidden group btn-festive mb-3">
                 <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-12" />
                 <span className="relative flex items-center justify-center gap-2">
                   <Camera size={20} />
-                  开始刷脸签到
+                  拍照签到（AI识别）
                 </span>
               </button>
-              {/* 摄像头失败时显示文件上传降级方案 */}
-              {cameraFailed && (
-                <div className="text-center">
-                  <p className="text-white/40 text-xs mb-2">摄像头不可用？可以上传照片代替</p>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 rounded-xl border border-yellow-400/30 text-yellow-400/80 text-sm hover:bg-yellow-400/5 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Upload size={16} />
-                    上传照片签到
-                  </button>
-                </div>
-              )}
-              {/* 始终显示上传选项 */}
-              {!cameraFailed && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2 rounded-xl text-white/30 text-xs hover:text-white/50 transition-all flex items-center justify-center gap-1.5 mt-1"
-                >
-                  <Upload size={12} />
-                  或上传照片签到
-                </button>
-              )}
+              <p className="text-center text-white/30 text-xs">点击后调起摄像头拍照，AI自动完成人脸识别</p>
             </motion.div>
           )}
 
-          {/* ===== 摄像头步骤 ===== */}
-          {step === "camera" && (
-            <motion.div key="camera" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
+          {/* ===== AI扫描动画步骤（拍照后模拟识别）===== */}
+          {step === "scanning" && photoDataUrl && (
+            <motion.div key="scanning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
               <div className="text-center mb-4">
                 <h2 className="text-xl font-bold text-gold-gradient">AI人脸识别</h2>
                 <p className="text-white/50 text-sm mt-1">
-                  {scanning ? "正在识别人脸，请保持正面朝向..." : "识别成功！点击拍照完成签到"}
+                  {scanning ? "正在识别人脸，请稍候..." : "识别成功！"}
                 </p>
               </div>
 
-              {/* 摄像头预览 */}
+              {/* 照片 + 扫描动画叠加 */}
               <div className="relative mx-auto w-72 h-72 rounded-2xl overflow-hidden mb-6"
                 style={{ border: faceDetected ? "2px solid rgba(0,255,150,0.7)" : "2px solid rgba(255,215,0,0.3)" }}>
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+                <img src={photoDataUrl} alt="签到照片" className="w-full h-full object-cover" />
                 <AIScanOverlay scanning={scanning} />
                 <FaceDetectedOverlay show={faceDetected} />
               </div>
 
-              {/* 拍照按钮 */}
-              <div className="flex gap-3">
-                <button onClick={closeCamera}
-                  className="flex-1 py-3 rounded-xl glass-card text-white/60 text-sm flex items-center justify-center gap-2">
-                  <RotateCcw size={16} />取消
-                </button>
-                <button
-                  onClick={takePhoto}
-                  disabled={!faceDetected}
-                  className={`flex-2 flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                    faceDetected ? "btn-festive" : "bg-white/10 text-white/30 cursor-not-allowed"
-                  }`}
-                >
-                  <Camera size={18} />
-                  {faceDetected ? "拍照签到" : "识别中..."}
-                </button>
+              {/* 进度提示 */}
+              <div className="flex justify-center gap-1 mt-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="w-2 h-2 rounded-full bg-yellow-400/60 animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+                ))}
               </div>
             </motion.div>
           )}
@@ -513,7 +427,7 @@ export default function Checkin() {
               {/* 照片预览 */}
               <div className="relative mx-auto w-64 h-64 rounded-2xl overflow-hidden mb-6"
                 style={{ border: "2px solid rgba(255,215,0,0.5)", boxShadow: "0 0 30px rgba(255,215,0,0.2)" }}>
-                <img src={photoDataUrl} alt="签到照片" className="w-full h-full object-cover scale-x-[-1]" />
+                <img src={photoDataUrl} alt="签到照片" className="w-full h-full object-cover" />
                 {/* AI风格叠加效果 */}
                 <div className="absolute inset-0 pointer-events-none"
                   style={{ background: "linear-gradient(135deg, rgba(232,0,29,0.08) 0%, transparent 50%, rgba(255,215,0,0.06) 100%)" }} />

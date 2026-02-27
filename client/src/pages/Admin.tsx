@@ -6,15 +6,15 @@ import { motion, AnimatePresence } from "framer-motion";
 
 type Tab = "overview" | "checkins" | "awards" | "lottery" | "wishes";
 
-// 25人名单（根据文档，雷总/刘总/王总固定分到不同组）
-const FIXED_LEADERS = ["雷总", "刘总", "王总"];
+// 21人名单（雷总/王总/刘总固定分到不同组）
+const FIXED_LEADERS = ["雷总", "王总", "刘总"];
 
-// 按文档人员预设（25人）
+// 预设名单（21人）
 const DEFAULT_MEMBERS = [
-  "雷总", "刘总", "王总",
-  "张伟", "李娜", "王芳", "刘洋", "陈静", "杨磊", "赵敏", "黄强",
-  "周婷", "吴杰", "徐慧", "孙浩", "马丽", "朱峰", "胡雪", "郭明",
-  "何丽", "高鹏", "林芳", "罗勇", "梁静",
+  "雷总", "王总", "刘总",
+  "高贺芬", "李勇", "赵辉", "李绍晖", "王尊鹏", "陈玺燊",
+  "杨培玉", "张鹏辉", "边东", "周贵亮", "朱玉婷", "万华",
+  "石晓林", "王燕", "李翔", "薛君浩", "石乙泽", "顾倬冉",
 ];
 
 export default function Admin() {
@@ -25,7 +25,7 @@ export default function Admin() {
   const [generatedSpeech, setGeneratedSpeech] = useState("");
   const [lotteryCount, setLotteryCount] = useState(1);
   const [lotteryResult, setLotteryResult] = useState<string[]>([]);
-  const [groupCount, setGroupCount] = useState(3);
+  const [groupCount, setGroupCount] = useState(4);
   const [groupResult, setGroupResult] = useState<{ groupName: string; members: string[]; color: string }[]>([]);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
@@ -111,15 +111,13 @@ export default function Admin() {
     // 随机打乱普通成员
     const shuffled = [...others].sort(() => Math.random() - 0.5);
 
-    // 构建分组成员列表：领导先占位
-    const effectiveGroupCount = Math.min(groupCount, Math.max(leaders.length, 2));
+    // 使用用户设定的分组数（不受领导人数限制）
+    const effectiveGroupCount = Math.min(groupCount, memberNames.length);
     const groupMembers: string[][] = Array.from({ length: effectiveGroupCount }, () => []);
 
-    // 固定领导分组（雷总→第一组，刘总→第二组，王总→第三组）
+    // 固定领导分组（雷总→第一组，王总→第二组，刘总→第三组，超出组数则轮流分配）
     leaders.forEach((leader, idx) => {
-      if (idx < effectiveGroupCount) {
-        groupMembers[idx].push(leader);
-      }
+      groupMembers[idx % effectiveGroupCount].push(leader);
     });
 
     // 轮流分配其余成员
@@ -408,10 +406,10 @@ export default function Admin() {
                     ? `基于 ${regMemberList.length} 位报名用户分组`
                     : `使用预设名单（${DEFAULT_MEMBERS.length}人），报名人数不足时自动启用`}
                   <br />
-                  <span className="text-yellow-400/60">★ 雷总/刘总/王总固定分入不同组</span>
+                  <span className="text-yellow-400/60">★ 雷总/王总/刘总固定分入不同组</span>
                 </p>
                 <div className="mb-3">
-                  <label className="text-white/60 text-xs mb-1.5 block">分组数量（建议3组）</label>
+                  <label className="text-white/60 text-xs mb-1.5 block">分组数量（建议4组）</label>
                   <div className="flex items-center gap-3">
                     <button onClick={() => setGroupCount((v) => Math.max(2, v - 1))}
                       className="w-9 h-9 rounded-lg glass-card text-white/70 font-bold text-lg">−</button>
