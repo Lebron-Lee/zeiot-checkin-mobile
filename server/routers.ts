@@ -379,19 +379,36 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
 
-        const shuffled = [...input.members].sort(() => Math.random() - 0.5);
+        const FIXED_LEADERS = ["雷总", "王总", "刘总"];
         const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F"];
-        const groups: { groupName: string; members: string; color: string }[] = [];
+        const groupCount = input.groupCount;
 
-        for (let i = 0; i < input.groupCount; i++) {
-          const start = Math.floor((i * shuffled.length) / input.groupCount);
-          const end = Math.floor(((i + 1) * shuffled.length) / input.groupCount);
-          groups.push({
-            groupName: `第${["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][i] || i + 1}组`,
-            members: JSON.stringify(shuffled.slice(start, end)),
-            color: colors[i % colors.length],
-          });
-        }
+        // 分离领导和普通成员
+        const leaders = input.members.filter((n) => FIXED_LEADERS.includes(n));
+        const others = input.members.filter((n) => !FIXED_LEADERS.includes(n));
+
+        // 随机打乱普通成员
+        const shuffled = [...others].sort(() => Math.random() - 0.5);
+
+        // 初始化分组数组
+        const groupMembers: string[][] = Array.from({ length: groupCount }, () => []);
+
+        // 固定领导：雷总→第0组，王总→第1组，刘总→第2组（严格不同组）
+        leaders.forEach((leader, idx) => {
+          groupMembers[idx % groupCount].push(leader);
+        });
+
+        // 轮流分配普通成员
+        shuffled.forEach((member, idx) => {
+          groupMembers[idx % groupCount].push(member);
+        });
+
+        const chineseNums = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+        const groups: { groupName: string; members: string; color: string }[] = groupMembers.map((members, i) => ({
+          groupName: `第${chineseNums[i] || i + 1}组`,
+          members: JSON.stringify(members),
+          color: colors[i % colors.length],
+        }));
 
         await saveTeamGroups(groups);
 
