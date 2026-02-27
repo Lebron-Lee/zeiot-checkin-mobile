@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   createCheckin,
+  upsertCheckin,
   createWishCard,
   getActiveQuizQuestions,
   createRegistration,
@@ -166,15 +167,14 @@ export const appRouter = router({
           }
         }
 
-        // 检查是否已签到
-        const existing = await getCheckinByUserId(ctx.user.id);
-        if (existing) return { checkin: existing, isNew: false };
-
-        // 使用拍照的照片作为头像，无照片则使用默认头像
+        // 使用upsert：已签到则更新，未签到则新建
         const avatarUrl = input.photoUrl || "";
         const avatarStyle = "face-photo";
 
-        const checkin = await createCheckin({
+        const existing = await getCheckinByUserId(ctx.user.id);
+        const isNew = !existing;
+
+        const checkin = await upsertCheckin({
           userId: ctx.user.id,
           userName: ctx.user.name || "匿名员工",
           avatarUrl,
@@ -193,7 +193,7 @@ export const appRouter = router({
           console.error("Broadcast failed:", e);
         }
 
-        return { checkin, isNew: true };
+        return { checkin, isNew };
       }),
   }),
 

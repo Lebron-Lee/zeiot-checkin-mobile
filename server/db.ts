@@ -108,6 +108,39 @@ export async function createCheckin(data: {
   return result[0];
 }
 
+export async function upsertCheckin(data: {
+  userId: number;
+  userName: string;
+  avatarUrl?: string;
+  avatarStyle?: string;
+  department?: string;
+  message?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(checkins).where(eq(checkins.userId, data.userId)).limit(1);
+  if (existing[0]) {
+    // 更新已有签到记录
+    await db.update(checkins)
+      .set({
+        userName: data.userName,
+        avatarUrl: data.avatarUrl,
+        avatarStyle: data.avatarStyle,
+        department: data.department,
+        message: data.message,
+        checkedInAt: new Date(),
+      })
+      .where(eq(checkins.userId, data.userId));
+  } else {
+    // 新建签到记录
+    const count = await db.select({ count: sql<number>`count(*)` }).from(checkins);
+    const position = (count[0]?.count ?? 0) + 1;
+    await db.insert(checkins).values({ ...data, gridPosition: position });
+  }
+  const result = await db.select().from(checkins).where(eq(checkins.userId, data.userId)).limit(1);
+  return result[0];
+}
+
 export async function getCheckinCount() {
   const db = await getDb();
   if (!db) return 0;
@@ -132,7 +165,9 @@ export async function createWishCard(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(wishCards).values(data);
+  // 将null转为undefined，避免MySQL对nullable varchar插入null时的SQL错误
+  const insertData = { ...data, userAvatar: data.userAvatar || undefined };
+  await db.insert(wishCards).values(insertData);
   const result = await db
     .select()
     .from(wishCards)
@@ -314,70 +349,19 @@ export async function resetEventData() {
   await db.delete(teamGroups);
 }
 
-// ===== AI问答种子数据 =====
-const QUIZ_SEED_DATA = [
-  {
-    question: "AI（人工智能）中的'机器学习'是指什么？",
-    optionA: "机器自动维修的技术",
-    optionB: "让计算机通过数据自动学习规律的技术",
-    optionC: "机器人学习人类语言的过程",
-    optionD: "工厂自动化生产流程",
-    correctAnswer: "B" as const,
-    explanation: "机器学习是AI的核心分支，让计算机通过大量数据自动发现规律并做出预测，无需人工编写明确规则。",
-    reward: 5,
-    isActive: true,
-  },
-  {
-    question: "ChatGPT、文心一言等大语言模型的核心技术架构是？",
-    optionA: "卷积神经网络（CNN）",
-    optionB: "循环神经网络（RNN）",
-    optionC: "Transformer架构",
-    optionD: "决策树算法",
-    correctAnswer: "C" as const,
-    explanation: "Transformer架构由Google在2017年提出，通过注意力机制处理序列数据，是当前大语言模型的基础架构。",
-    reward: 5,
-    isActive: true,
-  },
-  {
-    question: "在物联网（IoT）应用中，AI的主要作用是？",
-    optionA: "替代所有人工操作",
-    optionB: "对传感器数据进行智能分析和预测",
-    optionC: "提高网络传输速度",
-    optionD: "降低硬件成本",
-    correctAnswer: "B" as const,
-    explanation: "AI在IoT中主要用于分析海量传感器数据，实现设备故障预测、异常检测、能耗优化等智能化应用。",
-    reward: 5,
-    isActive: true,
-  },
-  {
-    question: "中易物联集团的主营业务方向是？",
-    optionA: "互联网电商平台",
-    optionB: "物联网技术与智能化解决方案",
-    optionC: "传统制造业",
-    optionD: "金融科技服务",
-    correctAnswer: "B" as const,
-    explanation: "中易物联集团专注于物联网技术，为客户提供智能化解决方案，助力企业数字化转型。",
-    reward: 5,
-    isActive: true,
-  },
-  {
-    question: "以下哪个不是常见的AI应用场景？",
-    optionA: "人脸识别门禁",
-    optionB: "智能客服机器人",
-    optionC: "传统纸质档案归档",
-    optionD: "预测性设备维护",
-    correctAnswer: "C" as const,
-    explanation: "传统纸质档案归档是人工流程，不涉及AI技术。其他选项都是AI的典型应用场景。",
-    reward: 5,
-    isActive: true,
-  },
-];
+// ===== AI问答种子数据（200道前沿AI知识题）=====
+import { QUIZ_QUESTIONS_200 } from "./quiz_data";
 
 export async function seedQuizQuestionsIfEmpty() {
   const db = await getDb();
   if (!db) return;
   const existing = await db.select().from(quizQuestions).limit(1);
   if (existing.length > 0) return; // 已有题目，不重复插入
-  await db.insert(quizQuestions).values(QUIZ_SEED_DATA);
-  console.log("[DB] Quiz questions seeded:", QUIZ_SEED_DATA.length, "questions");
+  // 分批插入，避免单次插入过多
+  const batchSize = 50;
+  for (let i = 0; i < QUIZ_QUESTIONS_200.length; i += batchSize) {
+    const batch = QUIZ_QUESTIONS_200.slice(i, i + batchSize);
+    await db.insert(quizQuestions).values(batch);
+  }
+  console.log("[DB] Quiz questions seeded:", QUIZ_QUESTIONS_200.length, "questions");
 }

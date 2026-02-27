@@ -337,17 +337,34 @@ function AutoScrollCheckinList({ checkins }: { checkins: CheckinRecord[] }) {
   );
 }
 
+// AI问答题目类型
+type QuizQuestion = {
+  id: number;
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctAnswer: string;
+  explanation?: string | null;
+};
+
 export default function BigScreen() {
-  const [activeTab, setActiveTab] = useState<"checkin" | "wish" | "group">("checkin");
+  const [activeTab, setActiveTab] = useState<"checkin" | "wish" | "quiz">("checkin");
   const [checkins, setCheckins] = useState<CheckinRecord[]>([]);
   const [wishCards, setWishCards] = useState<WishCardRecord[]>([]);
   const [groups, setGroups] = useState<GroupResult[]>([]);
   const [awardModal, setAwardModal] = useState<{ awardName: string; winnerName: string; speech: string } | null>(null);
   const [lotteryModal, setLotteryModal] = useState<{ winnerName: string; prizeName: string; prizeAmount?: number } | null>(null);
   const [recentCheckins, setRecentCheckins] = useState<CheckinRecord[]>([]);
-  // 是否暂停自动切换（手动选分组时暂停）
+  // 是否暂停自动切换（手动选AI问答时暂停）
   const [autoPaused, setAutoPaused] = useState(false);
   const autoTabRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // AI问答状态
+  const [quizQuestion, setQuizQuestion] = useState<QuizQuestion | null>(null);
+  const [quizSelected, setQuizSelected] = useState<string | null>(null);
+  const [quizAllQuestions, setQuizAllQuestions] = useState<QuizQuestion[]>([]);
+  const [quizUsedIds, setQuizUsedIds] = useState<Set<number>>(new Set());
 
   // 数据查询
   const { data: checkinData } = trpc.checkin.getAll.useQuery();
@@ -383,15 +400,39 @@ export default function BigScreen() {
   }, [autoPaused, startAutoSwitch]);
 
   // 手动点击标签
-  const handleTabClick = (tab: "checkin" | "wish" | "group") => {
+  const handleTabClick = (tab: "checkin" | "wish" | "quiz") => {
     setActiveTab(tab);
-    if (tab === "group") {
-      // 手动选分组：暂停自动切换
+    if (tab === "quiz") {
+      // 手动选AI问答：暂停自动切换
       setAutoPaused(true);
     } else {
       // 手动选签到/心愿墙：恢复自动切换
       setAutoPaused(false);
     }
+  };
+
+  // 加载AI问答题库
+  const { data: quizData } = trpc.quiz.getQuestions.useQuery();
+  useEffect(() => {
+    if (quizData) setQuizAllQuestions(quizData as unknown as QuizQuestion[]);
+  }, [quizData]);
+
+  // 出题：从未用过的题目中随机取一题
+  const handleDrawQuestion = () => {
+    const available = quizAllQuestions.filter(q => !quizUsedIds.has(q.id));
+    if (available.length === 0) {
+      // 题库已出完，重置
+      setQuizUsedIds(new Set());
+      const idx = Math.floor(Math.random() * quizAllQuestions.length);
+      setQuizQuestion(quizAllQuestions[idx] || null);
+      setQuizUsedIds(new Set([quizAllQuestions[idx]?.id ?? 0]));
+    } else {
+      const idx = Math.floor(Math.random() * available.length);
+      const q = available[idx];
+      setQuizQuestion(q);
+      setQuizUsedIds(prev => new Set(Array.from(prev).concat(q.id)));
+    }
+    setQuizSelected(null);
   };
 
   // WebSocket
@@ -431,8 +472,7 @@ export default function BigScreen() {
     if (msg.type === "TEAM_GROUPS" && msg.data) {
       const d = msg.data as GroupResult[];
       setGroups(d);
-      setActiveTab("group");
-      setAutoPaused(true); // 新分组结果推送时也暂停自动切换
+      // 分组结果不再切换大屏页签
     }
   }, []);
 
@@ -486,12 +526,12 @@ export default function BigScreen() {
         {/* 主内容区 */}
         <div className="flex gap-4 flex-1 min-h-0">
 
-          {/* 左侧：AI头像签到墙 */}
+          {/* 左侧：签到墙 */}
           <div className="w-[420px] flex-shrink-0 glass-card border-gold-glow rounded-2xl p-4 flex flex-col corner-frame">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-yellow-400 text-sm">🎯</span>
-                <span className="text-white/80 text-sm font-semibold">AI头像签到墙</span>
+                <span className="text-white/80 text-sm font-semibold">签到墙</span>
               </div>
               <span className="text-yellow-400/70 text-xs">{checkinCount}/{totalSeats}</span>
             </div>
@@ -541,11 +581,11 @@ export default function BigScreen() {
               {[
                 { key: "checkin", label: "实时签到", icon: "🎯" },
                 { key: "wish", label: "心愿墙", icon: "✨" },
-                { key: "group", label: "分组结果", icon: "👥" },
+                { key: "quiz", label: "AI问答", icon: "🤖" },
               ].map(tab => (
                 <button
                   key={tab.key}
-                  onClick={() => handleTabClick(tab.key as "checkin" | "wish" | "group")}
+                  onClick={() => handleTabClick(tab.key as "checkin" | "wish" | "quiz")}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                     activeTab === tab.key
                       ? "btn-festive text-white"
@@ -613,47 +653,108 @@ export default function BigScreen() {
                   </motion.div>
                 )}
 
-                {/* 分组结果 */}
-                {activeTab === "group" && (
+                {/* AI问答 */}
+                {activeTab === "quiz" && (
                   <motion.div
-                    key="group"
+                    key="quiz"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full"
+                    className="h-full flex flex-col"
                   >
-                    <div className="text-white/50 text-xs mb-3">👥 AI随机分组结果</div>
-                    {groups.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-32 text-white/30">
-                        <div className="text-4xl mb-2">👥</div>
-                        <p className="text-sm">等待管理员执行分组...</p>
+                    <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                      <div className="text-white/50 text-xs flex items-center gap-2">
+                        <span>🤖</span>
+                        <span>AI知识问答（题库{quizAllQuestions.length}道，已出{quizUsedIds.size}道）</span>
+                      </div>
+                      <button
+                        onClick={handleDrawQuestion}
+                        className="px-5 py-2 rounded-xl text-sm font-bold btn-festive text-white transition-all hover:scale-105 active:scale-95"
+                      >
+                        🎲 出题
+                      </button>
+                    </div>
+                    {!quizQuestion ? (
+                      <div className="flex flex-col items-center justify-center flex-1 text-white/30">
+                        <div className="text-5xl mb-4">🤖</div>
+                        <p className="text-base">点击「出题」按钮开始答题</p>
+                        <p className="text-xs mt-2 text-white/20">题库共{quizAllQuestions.length}道前沿AI知识题</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3 overflow-y-auto h-[calc(100%-28px)]">
-                        {groups.map((g, i) => (
+                      <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
+                        {/* 题目 */}
+                        <div className="glass-card rounded-xl p-4" style={{ borderColor: "rgba(255,215,0,0.3)" }}>
+                          <p className="text-white font-semibold text-base leading-relaxed">{quizQuestion.question}</p>
+                        </div>
+                        {/* 选项 */}
+                        <div className="grid grid-cols-2 gap-3">
+                          {(["A", "B", "C", "D"] as const).map(opt => {
+                            const text = quizQuestion[`option${opt}` as keyof QuizQuestion] as string;
+                            const isSelected = quizSelected === opt;
+                            const isCorrect = quizQuestion.correctAnswer === opt;
+                            const answered = quizSelected !== null;
+                            let bgStyle = "rgba(255,255,255,0.05)";
+                            let borderStyle = "rgba(255,255,255,0.1)";
+                            let textColor = "text-white/80";
+                            if (answered && isCorrect) {
+                              bgStyle = "rgba(34,197,94,0.2)";
+                              borderStyle = "rgba(34,197,94,0.6)";
+                              textColor = "text-green-300";
+                            } else if (answered && isSelected && !isCorrect) {
+                              bgStyle = "rgba(239,68,68,0.2)";
+                              borderStyle = "rgba(239,68,68,0.6)";
+                              textColor = "text-red-300";
+                            } else if (!answered && isSelected) {
+                              bgStyle = "rgba(255,215,0,0.15)";
+                              borderStyle = "rgba(255,215,0,0.5)";
+                              textColor = "text-yellow-300";
+                            }
+                            return (
+                              <button
+                                key={opt}
+                                onClick={() => !answered && setQuizSelected(opt)}
+                                disabled={answered}
+                                className={`p-3 rounded-xl text-left transition-all ${textColor} ${!answered ? "hover:scale-[1.02] cursor-pointer" : "cursor-default"}`}
+                                style={{ background: bgStyle, border: `1px solid ${borderStyle}` }}
+                              >
+                                <span className="font-bold mr-2">{opt}.</span>{text}
+                                {answered && isCorrect && <span className="ml-2">✅</span>}
+                                {answered && isSelected && !isCorrect && <span className="ml-2">❌</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* 答题结果提示 */}
+                        {quizSelected && (
                           <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                            className="p-3 rounded-xl glass-card"
-                            style={{ borderColor: g.color + "60" }}
+                            className="glass-card rounded-xl p-4"
+                            style={{
+                              borderColor: quizSelected === quizQuestion.correctAnswer
+                                ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"
+                            }}
                           >
                             <div className="flex items-center gap-2 mb-2">
-                              <div className="w-3 h-3 rounded-full" style={{ background: g.color }} />
-                              <span className="text-white font-semibold text-sm">{g.groupName}</span>
-                              <span className="text-white/40 text-xs ml-auto">{g.members.length}人</span>
+                              <span className="text-xl">
+                                {quizSelected === quizQuestion.correctAnswer ? "✅" : "❌"}
+                              </span>
+                              <span className={`font-bold text-sm ${
+                                quizSelected === quizQuestion.correctAnswer ? "text-green-400" : "text-red-400"
+                              }`}>
+                                {quizSelected === quizQuestion.correctAnswer
+                                  ? "回答正确！"
+                                  : `回答错误，正确答案是「${quizQuestion.correctAnswer}」`
+                                }
+                              </span>
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                              {g.members.map((m, j) => (
-                                <span key={j} className="text-xs px-2 py-0.5 rounded-full text-white/80"
-                                  style={{ background: g.color + "30", border: `1px solid ${g.color}40` }}>
-                                  {m}
-                                </span>
-                              ))}
-                            </div>
+                            {quizQuestion.explanation && (
+                              <p className="text-white/60 text-xs leading-relaxed">
+                                💡 {quizQuestion.explanation}
+                              </p>
+                            )}
                           </motion.div>
-                        ))}
+                        )}
                       </div>
                     )}
                   </motion.div>
@@ -666,7 +767,7 @@ export default function BigScreen() {
               {[
                 { label: "已签到", value: checkinCount, icon: "🎯", color: "#e8001d" },
                 { label: "心愿卡", value: wishCards.length, icon: "✨", color: "#ffd700" },
-                { label: "分组数", value: groups.length, icon: "👥", color: "#ff6b35" },
+                { label: "已出题", value: quizUsedIds.size, icon: "🤖", color: "#ff6b35" },
                 { label: "活动进行中", value: "", icon: "🔴", color: "#22c55e", isStatus: true },
               ].map((stat, i) => (
                 <div key={i} className="glass-card rounded-xl p-3 text-center"

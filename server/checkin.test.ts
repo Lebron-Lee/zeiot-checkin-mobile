@@ -18,6 +18,17 @@ vi.mock("./db", () => ({
     gridPosition: 1,
     checkedInAt: new Date(),
   }),
+  upsertCheckin: vi.fn().mockResolvedValue({
+    id: 1,
+    userId: 1,
+    userName: "测试员工",
+    avatarUrl: "https://example.com/avatar.png",
+    avatarStyle: "ai-digital",
+    department: "技术研发部",
+    message: "2026，AI赋能！",
+    gridPosition: 1,
+    checkedInAt: new Date(),
+  }),
   getWishCards: vi.fn().mockResolvedValue([]),
   getUserWishCards: vi.fn().mockResolvedValue([]),
   createWishCard: vi.fn().mockResolvedValue({

@@ -93,7 +93,9 @@ export default function Admin() {
 
   const checkinList = (checkins as unknown) as { id: number; userId: number; userName: string; checkedInAt: Date }[];
   const awardList = awards as { id: number; name: string; description: string | null; icon: string | null }[];
-  const wishList = (wishes as unknown) as { id: number; content: string; userName: string; createdAt: Date }[];
+  const wishList = ((wishes as unknown) as { id: number; content: string; userName: string; createdAt: Date }[])
+    .slice()
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   const regList = registrations as { id: number; realName: string; department: string; position?: string }[];
   const regMemberList = registeredMembers as { name: string; department: string; position?: string | null }[];
 
@@ -450,19 +452,36 @@ export default function Admin() {
                 {wishList.length === 0 ? (
                   <p className="text-white/40 text-sm text-center py-8">暂无心愿，等待员工填写...</p>
                 ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {wishList.map((w) => (
-                      <div key={w.id} className="p-3 rounded-xl"
-                        style={{ background: "rgba(255,215,0,0.06)", border: "1px solid rgba(255,215,0,0.12)" }}>
-                        <p className="text-white/80 text-sm leading-relaxed">{w.content}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-white/40 text-xs">— {w.userName || "匿名"}</span>
-                          <span className="text-white/30 text-xs">
-                            {new Date(w.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0" style={{ background: "rgba(20,10,5,0.95)" }}>
+                        <tr>
+                          <th className="text-left text-white/40 text-xs font-medium py-2 px-3 w-10">#</th>
+                          <th className="text-left text-white/40 text-xs font-medium py-2 px-3 w-20">提交人</th>
+                          <th className="text-left text-white/40 text-xs font-medium py-2 px-3">心愿内容</th>
+                          <th className="text-left text-white/40 text-xs font-medium py-2 px-3 w-28">提交时间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wishList.map((w, idx) => (
+                          <tr key={w.id}
+                            style={{ borderTop: "1px solid rgba(255,215,0,0.08)" }}
+                            className="hover:bg-yellow-400/5 transition-colors"
+                          >
+                            <td className="py-2.5 px-3 text-white/30 text-xs font-mono">{idx + 1}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-yellow-300/80 text-xs font-medium">{w.userName || "匿名"}</span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <p className="text-white/80 text-xs leading-relaxed">{w.content}</p>
+                            </td>
+                            <td className="py-2.5 px-3 text-white/30 text-xs whitespace-nowrap">
+                              {new Date(w.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
