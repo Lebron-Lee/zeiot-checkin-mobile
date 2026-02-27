@@ -80,7 +80,7 @@ function CountdownBlock({ value, label }: { value: number; label: string }) {
 }
 
 const navItems = [
-  { path: "/checkin", icon: "🎯", label: "AI签到", desc: "立即签到", color: "from-red-800/60 to-red-600/40" },
+  // AI签到入口已移至首页主按钮，导航卡片不再显示AI签到
   { path: "/schedule", icon: "📅", label: "活动日程", desc: "全天流程", color: "from-orange-900/60 to-orange-700/40" },
   // AI问答功能已移至大屏端，手机端不再显示
   { path: "/wish", icon: "✨", label: "心愿卡", desc: "写下心愿", color: "from-purple-900/60 to-purple-700/40" },
