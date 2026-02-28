@@ -243,8 +243,12 @@ export const appRouter = router({
   quiz: router({
     getQuestions: publicProcedure.query(async () => {
       const questions = await getActiveQuizQuestions();
-      // 不返回正确答案
+      // 不返回正确答案（手机端防作弊）
       return questions.map(({ correctAnswer: _ca, explanation: _ex, ...q }) => q);
+    }),
+    // 大屏端专用：返回完整数据含正确答案和解析
+    getQuestionsWithAnswers: publicProcedure.query(async () => {
+      return getActiveQuizQuestions();
     }),
     getMyAnswers: protectedProcedure.query(async ({ ctx }) => {
       return getUserAnsweredQuestions(ctx.user.id);

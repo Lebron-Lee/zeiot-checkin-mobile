@@ -178,24 +178,114 @@ function LotteryModal({ result, onClose }: { result: { winnerName: string; prize
   );
 }
 
-// 飘动的心愿卡
-// 弹幕心愿墙组件：多行水平滚动，各行速度不同
-const LANE_COUNT = 5;
-const LANE_SPEEDS = [28, 22, 35, 25, 30]; // 各行滚动周期（秒）
+// 瀑布流心愿墙组件：3列错位垂直滚动，彻底避免卡片重叠
+const COLUMN_COUNT = 3;
+// 各列滚动速度（像素/秒），不同速度产生错落感
+const COLUMN_SPEEDS = [35, 28, 42];
+// 各列初始垂直偏移（px），产生错位效果
+const COLUMN_OFFSETS = [0, -80, -160];
+
+const wishColors: Record<string, { bg: string; border: string; glow: string }> = {
+  red:    { bg: "rgba(120,0,0,0.80)",    border: "rgba(255,100,100,0.45)",  glow: "rgba(255,80,80,0.15)" },
+  gold:   { bg: "rgba(100,65,0,0.80)",   border: "rgba(255,215,0,0.45)",   glow: "rgba(255,215,0,0.15)" },
+  purple: { bg: "rgba(65,0,100,0.80)",   border: "rgba(180,100,255,0.45)", glow: "rgba(180,100,255,0.15)" },
+  green:  { bg: "rgba(0,70,35,0.80)",    border: "rgba(100,220,130,0.45)", glow: "rgba(100,220,130,0.15)" },
+};
+
+function WishCard({ card }: { card: WishCardRecord }) {
+  const colors = wishColors[card.color || "red"] || wishColors.red;
+  return (
+    <div
+      className="rounded-2xl p-4 mb-3 flex-shrink-0"
+      style={{
+        background: colors.bg,
+        border: `1px solid ${colors.border}`,
+        boxShadow: `0 4px 20px rgba(0,0,0,0.4), inset 0 0 20px ${colors.glow}`,
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
+          style={{ border: `1.5px solid ${colors.border}` }}>
+          {card.userAvatar ? (
+            <img src={card.userAvatar} alt={card.userName} className="w-full h-full object-cover" />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-xs font-bold text-yellow-300"
+              style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}
+            >
+              {card.userName.slice(0, 1)}
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-yellow-300/90 text-xs font-semibold truncate block">{card.userName}</span>
+          <span className="text-white/30 text-[10px]">写下心愿</span>
+        </div>
+        <span className="text-white/20 text-[10px] flex-shrink-0">✨</span>
+      </div>
+      <p className="text-white/90 text-sm leading-relaxed">
+        &ldquo;{card.content}&rdquo;
+      </p>
+    </div>
+  );
+}
+
+function WaterfallColumn({ cards, speed, initialOffset, visible }: {
+  cards: WishCardRecord[];
+  speed: number;
+  initialOffset: number;
+  visible: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<number>(0);
+  const posRef = useRef<number>(initialOffset);
+
+  useEffect(() => {
+    if (!visible || cards.length === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    let lastTime = 0;
+    const animate = (timestamp: number) => {
+      if (!lastTime) lastTime = timestamp;
+      const delta = (timestamp - lastTime) / 1000; // 转为秒
+      lastTime = timestamp;
+
+      posRef.current -= speed * delta;
+      // 内容高度的一半（因为内容复制了两份）
+      const halfHeight = container.scrollHeight / 2;
+      if (Math.abs(posRef.current) >= halfHeight) {
+        posRef.current += halfHeight;
+      }
+      container.style.transform = `translateY(${posRef.current}px)`;
+      animRef.current = requestAnimationFrame(animate);
+    };
+
+    animRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [cards, speed, visible]);
+
+  // 复制两份内容实现无缝循环
+  const doubled = [...cards, ...cards];
+
+  return (
+    <div className="flex-1 overflow-hidden relative" style={{ minWidth: 0 }}>
+      <div ref={containerRef} style={{ willChange: "transform" }}>
+        {doubled.map((card, i) => (
+          <WishCard key={`${card.id}-${i}`} card={card} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function DanmakuWishWall({ cards, visible }: { cards: WishCardRecord[]; visible: boolean }) {
-  // 将卡片按序号分配到各行
-  const lanes: WishCardRecord[][] = Array.from({ length: LANE_COUNT }, () => []);
+  // 将卡片按列分配（轮流分配到3列）
+  const columns: WishCardRecord[][] = Array.from({ length: COLUMN_COUNT }, () => []);
   cards.forEach((card, i) => {
-    lanes[i % LANE_COUNT].push(card);
+    columns[i % COLUMN_COUNT].push(card);
   });
-
-  const wishColors: Record<string, { bg: string; border: string }> = {
-    red:    { bg: "rgba(139,0,0,0.75)",    border: "rgba(255,100,100,0.4)" },
-    gold:   { bg: "rgba(120,80,0,0.75)",   border: "rgba(255,215,0,0.4)" },
-    purple: { bg: "rgba(80,0,120,0.75)",   border: "rgba(180,100,255,0.4)" },
-    green:  { bg: "rgba(0,80,40,0.75)",    border: "rgba(100,220,130,0.4)" },
-  };
 
   return (
     <div
@@ -208,68 +298,17 @@ function DanmakuWishWall({ cards, visible }: { cards: WishCardRecord[]; visible:
           <p className="text-sm">等待员工写下心愿...</p>
         </div>
       ) : (
-        lanes.map((laneCards, laneIdx) => {
-          if (laneCards.length === 0) return null;
-          const speed = LANE_SPEEDS[laneIdx];
-          // 每行内卡片重复两遍以确保无缝滚动
-          const doubled = [...laneCards, ...laneCards];
-          return (
-            <div
-              key={laneIdx}
-              className="absolute w-full flex items-center gap-4"
-              style={{
-                top: `${laneIdx * 20 + 2}%`,
-                height: "18%",
-              }}
-            >
-              <div
-                className="flex gap-4 items-center"
-                style={{
-                  animation: `danmaku-scroll ${speed}s linear infinite`,
-                  animationDelay: `${-laneIdx * (speed / LANE_COUNT)}s`,
-                  willChange: "transform",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {doubled.map((card, ci) => {
-                  const colors = wishColors[card.color || "red"] || wishColors.red;
-                  return (
-                    <div
-                      key={`${card.id}-${ci}`}
-                      className="inline-flex flex-col rounded-xl p-3 flex-shrink-0"
-                      style={{
-                        width: "180px",
-                        background: colors.bg,
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-                        backdropFilter: "blur(8px)",
-                      }}
-                    >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border border-yellow-400/40">
-                          {card.userAvatar ? (
-                            <img src={card.userAvatar} alt={card.userName} className="w-full h-full object-cover" />
-                          ) : (
-                            <div
-                              className="w-full h-full flex items-center justify-center text-[10px] font-bold text-yellow-300"
-                              style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}
-                            >
-                              {card.userName.slice(0, 1)}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-yellow-300/80 text-[10px] truncate font-medium">{card.userName}</span>
-                      </div>
-                      <p className="text-white/90 text-xs leading-relaxed" style={{ whiteSpace: "normal", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        “{card.content}”
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })
+        <div className="flex gap-4 h-full px-2 pt-2">
+          {columns.map((colCards, colIdx) => (
+            <WaterfallColumn
+              key={colIdx}
+              cards={colCards.length > 0 ? colCards : cards.slice(0, Math.max(1, Math.floor(cards.length / 3)))}
+              speed={COLUMN_SPEEDS[colIdx]}
+              initialOffset={COLUMN_OFFSETS[colIdx]}
+              visible={visible}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -445,8 +484,8 @@ export default function BigScreen() {
     }
   };
 
-  // 加载AI问答题库
-  const { data: quizData } = trpc.quiz.getQuestions.useQuery();
+  // 加载AI问答题库（大屏端专用接口，含正确答案和解析）
+  const { data: quizData } = trpc.quiz.getQuestionsWithAnswers.useQuery();
   useEffect(() => {
     if (quizData) setQuizAllQuestions(quizData as unknown as QuizQuestion[]);
   }, [quizData]);
@@ -685,7 +724,7 @@ export default function BigScreen() {
                     <div className="flex items-center justify-between mb-3 flex-shrink-0">
                       <div className="text-white/50 text-xs flex items-center gap-2">
                         <span>🤖</span>
-                        <span>AI知识问答（题库{quizAllQuestions.length}道，已出{quizUsedIds.size}道）</span>
+                        <span>AI知识问答</span>
                       </div>
                       <button
                         onClick={handleDrawQuestion}
@@ -698,7 +737,7 @@ export default function BigScreen() {
                       <div className="flex flex-col items-center justify-center flex-1 text-white/30">
                         <div className="text-5xl mb-4">🤖</div>
                         <p className="text-base">点击「出题」按钮开始答题</p>
-                        <p className="text-xs mt-2 text-white/20">题库共{quizAllQuestions.length}道前沿AI知识题</p>
+                        <p className="text-xs mt-2 text-white/20">点击「出题」开始活动现场互动</p>
                       </div>
                     ) : (
                       <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
