@@ -1,0 +1,14 @@
+{
+  "query": "SELECT configKey, configValue FROM event_config WHERE configKey LIKE 'avatar_override%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute SELECT configKey, configValue FROM event_config WHERE configKey LIKE 'avatar_override%';",
+  "rows": [
+    {
+      "configKey": "avatar_override_刘雪丽",
+      "configValue": "https://d2xsxph8kpxj0f.cloudfront.net/309964133946657044/aKfXsAAWkFV4nzVromsyqD/liuxueli-avatar_f40f8f1d.jpg"
+    }
+  ],
+  "messages": [],
+  "stdout": "configKey\tconfigValue\navatar_override_刘雪丽\thttps://d2xsxph8kpxj0f.cloudfront.net/309964133946657044/aKfXsAAWkFV4nzVromsyqD/liuxueli-avatar_f40f8f1d.jpg\n",
+  "stderr": "",
+  "execution_time_ms": 1554
+}

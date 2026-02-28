@@ -694,7 +694,7 @@ export default function BigScreen() {
         <div className="flex gap-4 flex-1 min-h-0">
 
           {/* 左侧：签到墙 */}
-          <div className="w-[420px] flex-shrink-0 glass-card border-gold-glow rounded-2xl p-4 flex flex-col corner-frame">
+          <div className="w-[480px] flex-shrink-0 glass-card border-gold-glow rounded-2xl p-4 flex flex-col corner-frame">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-yellow-400 text-sm">🎯</span>
@@ -702,14 +702,16 @@ export default function BigScreen() {
               </div>
               <span className="text-yellow-400/70 text-xs">{checkinCount}/{totalSeats}</span>
             </div>
+            {/* 5列网格，每格包含头像+名字 */}
             <div className="grid grid-cols-5 gap-2 flex-1">
               {gridCells.map((cell, i) => (
                 <motion.div
                   key={i}
-                  className="aspect-square rounded-xl overflow-hidden flex items-center justify-center relative"
+                  className="flex flex-col items-center justify-start rounded-xl overflow-hidden relative"
                   style={{
-                    background: cell ? "transparent" : "rgba(139,26,26,0.3)",
+                    background: cell ? "rgba(139,26,26,0.15)" : "rgba(139,26,26,0.3)",
                     border: cell ? "1px solid rgba(255,215,0,0.5)" : "1px solid rgba(255,215,0,0.12)",
+                    padding: cell ? "0" : "0",
                   }}
                   initial={cell ? { scale: 0, opacity: 0 } : {}}
                   animate={cell ? { scale: 1, opacity: 1 } : {}}
@@ -717,16 +719,27 @@ export default function BigScreen() {
                 >
                   {cell ? (
                     <>
-                      {cell.avatarUrl ? (
-                        <img src={cell.avatarUrl} alt={cell.userName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center"
-                          style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
-                          <span className="text-white font-bold text-sm">{cell.userName.slice(0, 1)}</span>
-                        </div>
-                      )}
+                      {/* 头像区域：占大部分高度 */}
+                      <div className="w-full aspect-square overflow-hidden flex-shrink-0">
+                        {cell.avatarUrl ? (
+                          <img src={cell.avatarUrl} alt={cell.userName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center"
+                            style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
+                            <span className="text-white font-bold text-lg">{cell.userName.slice(0, 1)}</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* 名字标签 */}
+                      <div className="w-full px-1 py-0.5 text-center flex-shrink-0"
+                        style={{ background: "rgba(0,0,0,0.55)" }}>
+                        <span className="text-white text-[10px] font-medium leading-tight block truncate">
+                          {cell.userName}
+                        </span>
+                      </div>
+                      {/* 新签到发光动画 */}
                       <motion.div
-                        className="absolute inset-0 rounded-xl"
+                        className="absolute inset-0 rounded-xl pointer-events-none"
                         initial={{ opacity: 1 }}
                         animate={{ opacity: 0 }}
                         transition={{ duration: 2, delay: 0.5 }}
@@ -734,7 +747,9 @@ export default function BigScreen() {
                       />
                     </>
                   ) : (
-                    <span className="text-white/20 text-xs font-mono">{i + 1}</span>
+                    <div className="w-full aspect-square flex items-center justify-center">
+                      <span className="text-white/20 text-xs font-mono">{i + 1}</span>
+                    </div>
                   )}
                 </motion.div>
               ))}
@@ -915,24 +930,23 @@ export default function BigScreen() {
               </AnimatePresence>
             </div>
 
-            {/* 底部统计 */}
-            <div className="grid grid-cols-4 gap-3 mt-3">
+            {/* 底部统计：紧凑横排，减小内边距和字体，空出更多空间给上方页签 */}
+            <div className="grid grid-cols-4 gap-2 mt-2">
               {[
                 { label: "已签到", value: checkinCount, icon: "🎯", color: "#e8001d" },
                 { label: "心愿卡", value: wishCards.length, icon: "✨", color: "#ffd700" },
                 { label: "已出题", value: quizUsedIds.size, icon: "🤖", color: "#ff6b35" },
                 { label: "活动进行中", value: "", icon: "🔴", color: "#22c55e", isStatus: true },
               ].map((stat, i) => (
-                <div key={i} className="glass-card rounded-xl p-3 text-center"
+                <div key={i} className="glass-card rounded-lg px-2 py-1.5 text-center flex items-center justify-center gap-2"
                   style={{ borderColor: stat.color + "40" }}>
-                  <div className="text-xl mb-1">{stat.icon}</div>
+                  <span className="text-base flex-shrink-0">{stat.icon}</span>
                   {stat.isStatus ? (
-                    <div className="text-xs text-green-400 font-medium animate-pulse">{stat.label}</div>
+                    <span className="text-xs text-green-400 font-medium animate-pulse">{stat.label}</span>
                   ) : (
-                    <>
-                      <div className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</div>
-                      <div className="text-white/40 text-xs">{stat.label}</div>
-                    </>
+                    <span className="text-sm font-bold" style={{ color: stat.color }}>
+                      {stat.value} <span className="text-white/40 text-xs font-normal">{stat.label}</span>
+                    </span>
                   )}
                 </div>
               ))}
