@@ -178,6 +178,73 @@ function LotteryModal({ result, onClose }: { result: { winnerName: string; prize
   );
 }
 
+// 红包弹窗
+function RedPacketModal({ packet, onClose }: { packet: { recipientName: string; wishContent: string } | null; onClose: () => void }) {
+  useEffect(() => {
+    if (packet) {
+      const t = setTimeout(onClose, 10000);
+      return () => clearTimeout(t);
+    }
+  }, [packet, onClose]);
+  return (
+    <AnimatePresence>
+      {packet && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(80,0,0,0.90)" }}
+          onClick={onClose}
+        >
+          {/* 散落红包装饰 */}
+          {["🧧","🧧","🧧","🧧","🧧","🧧"].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute text-4xl pointer-events-none"
+              initial={{ y: -80, x: (i - 2.5) * 180, opacity: 1, rotate: 0 }}
+              animate={{ y: "110vh", rotate: (i % 2 === 0 ? 360 : -360), opacity: [1, 1, 0] }}
+              transition={{ duration: 3 + i * 0.4, delay: i * 0.2, ease: "easeIn" }}
+            >
+              🧧
+            </motion.div>
+          ))}
+          <motion.div
+            initial={{ scale: 0.3, y: 80 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.3, y: 80 }}
+            transition={{ type: "spring", damping: 16, stiffness: 200 }}
+            className="rounded-3xl p-10 max-w-lg mx-8 text-center relative"
+            style={{
+              background: "linear-gradient(160deg, #c0392b 0%, #8b1a1a 40%, #6b0f0f 100%)",
+              border: "3px solid rgba(255,215,0,0.8)",
+              boxShadow: "0 0 60px rgba(255,100,0,0.5), 0 0 120px rgba(255,50,0,0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 金圆装饰 */}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #ffd700, #ff8c00)", border: "3px solid #fff", boxShadow: "0 0 20px rgba(255,215,0,0.8)" }}>
+              <span className="text-2xl">🏧</span>
+            </div>
+            <div className="mt-6 mb-2 text-yellow-200/80 text-sm tracking-widest">恭喜收到红包</div>
+            <div className="text-5xl font-bold text-white mb-2" style={{ textShadow: "0 0 20px rgba(255,215,0,0.8)" }}>
+              {packet.recipientName}
+            </div>
+            <div className="text-yellow-300 text-2xl font-semibold mb-4">🧧 恭喜发财！大吉大利！</div>
+            {packet.wishContent && (
+              <div className="bg-black/20 rounded-xl p-3 mb-4">
+                <p className="text-white/80 text-sm leading-relaxed">“{packet.wishContent}”</p>
+              </div>
+            )}
+            <div className="text-yellow-200/40 text-xs">点击任意处关闭 · 10秒后自动关闭</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // 瀑布流心愿墙组件：3列错位垂直滚动，彻底避免卡片重叠
 const COLUMN_COUNT = 3;
 // 各列滚动速度（像素/秒），不同速度产生错落感
@@ -319,18 +386,28 @@ function AutoScrollCheckinList({ checkins }: { checkins: CheckinRecord[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [displayList, setDisplayList] = useState<CheckinRecord[]>([]);
 
-  // 每次checkins更新时，将新签到加到列表顶部
+  // 每次checkins更新时，去重（同一userId只保留最新一条）并按时间倒序
   useEffect(() => {
-    setDisplayList([...checkins]);
+    const deduped = Object.values(
+      checkins.reduce((acc, c) => {
+        // 同一用户名只保留最新的签到记录
+        if (!acc[c.userName] || new Date(c.checkedInAt) > new Date(acc[c.userName].checkedInAt)) {
+          acc[c.userName] = c;
+        }
+        return acc;
+      }, {} as Record<string, CheckinRecord>)
+    ).sort((a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime());
+    setDisplayList(deduped);
   }, [checkins]);
 
-  // 自动向上滚动
+  // 自动向上滚动，速度根据记录数自适应
   useEffect(() => {
     const container = containerRef.current;
     if (!container || displayList.length === 0) return;
     let animId: number;
     let lastTime = 0;
-    const speed = 0.4; // px/ms
+    // 记录越多滚动越慢：<5条 0.15px/ms，5-10条 0.25px/ms，>10条 0.35px/ms
+    const speed = displayList.length < 5 ? 0.15 : displayList.length < 10 ? 0.25 : 0.35;
 
     const scroll = (timestamp: number) => {
       if (!lastTime) lastTime = timestamp;
@@ -361,7 +438,7 @@ function AutoScrollCheckinList({ checkins }: { checkins: CheckinRecord[] }) {
     );
   }
 
-  // 复制一份用于无缝循环
+  // 记录较少时复制一份用于无缝循环
   const loopList = displayList.length < 6 ? [...displayList, ...displayList] : displayList;
 
   return (
@@ -429,6 +506,7 @@ export default function BigScreen() {
   const [groups, setGroups] = useState<GroupResult[]>([]);
   const [awardModal, setAwardModal] = useState<{ awardName: string; winnerName: string; speech: string } | null>(null);
   const [lotteryModal, setLotteryModal] = useState<{ winnerName: string; prizeName: string; prizeAmount?: number } | null>(null);
+  const [redPacketModal, setRedPacketModal] = useState<{ recipientName: string; wishContent: string } | null>(null);
   const [recentCheckins, setRecentCheckins] = useState<CheckinRecord[]>([]);
   // 是否暂停自动切换（手动选AI问答时暂停）
   const [autoPaused, setAutoPaused] = useState(false);
@@ -446,8 +524,18 @@ export default function BigScreen() {
 
   useEffect(() => {
     if (checkinData) {
-      setCheckins(checkinData as CheckinRecord[]);
-      setRecentCheckins((checkinData as CheckinRecord[]).slice(-15).reverse());
+      const data = checkinData as CheckinRecord[];
+      setCheckins(data);
+      // 初始化时去重：同一用户名只保留最新签到，按时间倒序取前15条
+      const deduped = Object.values(
+        data.reduce((acc, c) => {
+          if (!acc[c.userName] || new Date(c.checkedInAt) > new Date(acc[c.userName].checkedInAt)) {
+            acc[c.userName] = c;
+          }
+          return acc;
+        }, {} as Record<string, CheckinRecord>)
+      ).sort((a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime()).slice(0, 15);
+      setRecentCheckins(deduped);
     }
   }, [checkinData]);
 
@@ -517,7 +605,8 @@ export default function BigScreen() {
         if (exists) return prev;
         return [...prev, d];
       });
-      setRecentCheckins(prev => [d, ...prev].slice(0, 15));
+      // 新签到时，先移除同名旧记录，再将新记录插入顶部
+      setRecentCheckins(prev => [d, ...prev.filter(c => c.userName !== d.userName)].slice(0, 15));
       // 新签到时切换到签到tab并恢复自动切换
       setActiveTab("checkin");
       setAutoPaused(false);
@@ -541,6 +630,10 @@ export default function BigScreen() {
     if (msg.type === "LOTTERY_RESULT" && msg.data) {
       const d = msg.data as { winnerName: string; prizeName: string; prizeAmount?: number };
       setLotteryModal(d);
+    }
+    if (msg.type === "RED_PACKET" && msg.data) {
+      const d = msg.data as { recipientName: string; wishContent: string };
+      setRedPacketModal(d);
     }
     if (msg.type === "TEAM_GROUPS" && msg.data) {
       const d = msg.data as GroupResult[];
@@ -567,6 +660,7 @@ export default function BigScreen() {
       {/* 弹窗 */}
       <AwardModal award={awardModal} onClose={() => setAwardModal(null)} />
       <LotteryModal result={lotteryModal} onClose={() => setLotteryModal(null)} />
+      <RedPacketModal packet={redPacketModal} onClose={() => setRedPacketModal(null)} />
 
       <div className="relative z-10 h-screen flex flex-col p-5">
 

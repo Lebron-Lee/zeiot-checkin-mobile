@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO event_config (configKey, configValue) VALUES ('avatar_override_刘雪丽', 'https://d2xsxph8kpxj0f.cloudfront.net/309964133946657044/aKfXsAAWkFV4nzVromsyqD/liuxueli-avatar_f40f8f1d.jpg') ON DUPLICATE KEY UPDATE configValue = VALUES(configValue);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3nDcExQPxQi6oQ4.root --database aKfXsAAWkFV4nzVromsyqD --execute INSERT INTO event_config (configKey, configValue) VALUES ('avatar_override_刘雪丽', 'https://d2xsxph8kpxj0f.cloudfront.net/309964133946657044/aKfXsAAWkFV4nzVromsyqD/liuxueli-avatar_f40f8f1d.jpg') ON DUPLICATE KEY UPDATE configValue = VALUES(configValue);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1634
+}

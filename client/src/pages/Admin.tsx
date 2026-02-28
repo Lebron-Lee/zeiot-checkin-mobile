@@ -76,6 +76,11 @@ export default function Admin() {
     onError: (e) => toast.error("配置更新失败：" + e.message),
   });
 
+  const sendRedPacket = trpc.redPacket.send.useMutation({
+    onSuccess: () => toast.success("🧧 红包已发送到大屏！"),
+    onError: (e) => toast.error("发送失败：" + e.message),
+  });
+
   const handleToggleDebugMode = (enabled: boolean) => {
     setDebugMode(enabled);
     updateConfigMutation.mutate({ key: "debug_mode", value: enabled ? "true" : "false" });
@@ -460,6 +465,7 @@ export default function Admin() {
                           <th className="text-left text-white/40 text-xs font-medium py-2 px-3 w-20">提交人</th>
                           <th className="text-left text-white/40 text-xs font-medium py-2 px-3">心愿内容</th>
                           <th className="text-left text-white/40 text-xs font-medium py-2 px-3 w-28">提交时间</th>
+                          <th className="text-left text-white/40 text-xs font-medium py-2 px-3 w-20">操作</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -477,6 +483,21 @@ export default function Admin() {
                             </td>
                             <td className="py-2.5 px-3 text-white/30 text-xs whitespace-nowrap">
                               {new Date(w.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <button
+                                onClick={() => sendRedPacket.mutate({ recipientName: w.userName || "匿名", wishContent: w.content })}
+                                disabled={sendRedPacket.isPending}
+                                className="px-2 py-1 rounded-lg text-xs font-medium transition-all active:scale-95"
+                                style={{
+                                  background: sendRedPacket.isPending ? "rgba(139,26,26,0.3)" : "linear-gradient(135deg, #c0392b, #8b1a1a)",
+                                  border: "1px solid rgba(255,215,0,0.4)",
+                                  color: "#ffd700",
+                                  opacity: sendRedPacket.isPending ? 0.5 : 1,
+                                }}
+                              >
+                                🧧 发红包
+                              </button>
                             </td>
                           </tr>
                         ))}

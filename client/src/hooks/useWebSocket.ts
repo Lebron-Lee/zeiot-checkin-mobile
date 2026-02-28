@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 export type WSMessage = {
-  type: "NEW_CHECKIN" | "NEW_WISH_CARD" | "AWARD_SPEECH" | "LOTTERY_RESULT" | "TEAM_GROUPS" | "CONNECTED";
+  type: "NEW_CHECKIN" | "NEW_WISH_CARD" | "AWARD_SPEECH" | "LOTTERY_RESULT" | "TEAM_GROUPS" | "RED_PACKET" | "CONNECTED";
   data: unknown;
 };
 

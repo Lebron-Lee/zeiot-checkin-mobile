@@ -167,8 +167,11 @@ export const appRouter = router({
           }
         }
 
-        // 使用upsert：已签到则更新，未签到则新建
-        const avatarUrl = input.photoUrl || "";
+        // 检查是否有该用户名的默认头像配置（如 avatar_override_刘雪丽）
+        const avatarOverrideKey = `avatar_override_${ctx.user.name}`;
+        const avatarOverride = config[avatarOverrideKey];
+        // 优先使用默认头像配置，其次使用用户上传的照片
+        const avatarUrl = avatarOverride || input.photoUrl || "";
         const avatarStyle = "face-photo";
 
         const existing = await getCheckinByUserId(ctx.user.id);
@@ -478,11 +481,29 @@ export const appRouter = router({
         });
         return { success: true };
       }),
-    // 管理员获取所有注册
+     // 管理员获取所有注册
     getAll: publicProcedure.query(async () => {
       return getAllRegistrations();
     }),
   }),
+  // ===== 红包 =====
+  redPacket: router({
+    // 管理员发红包：向大屏广播红包弹窗
+    send: publicProcedure
+      .input(z.object({
+        recipientName: z.string().min(1), // 收红包人姓名
+        wishContent: z.string().optional(), // 心愿内容（可选）
+      }))
+      .mutation(async ({ input }) => {
+        broadcastToClients({
+          type: "RED_PACKET",
+          data: {
+            recipientName: input.recipientName,
+            wishContent: input.wishContent || "",
+          },
+        });
+        return { success: true };
+      }),
+  }),
 });
-
 export type AppRouter = typeof appRouter;

@@ -6,6 +6,34 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Camera, CheckCircle2, RotateCcw, Scan, Loader2, UserCircle2 } from "lucide-react";
 
+// 图片压缩：将图片压缩到最大800px宽/高，质量0.8，减少上传体积
+async function compressImage(dataUrl: string, maxSize = 800, quality = 0.8): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 const MESSAGES = [
   "2026，AI赋能，乘风破浪！",
   "智启新征程，同心共奋进！",
@@ -143,9 +171,11 @@ export default function Checkin() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      if (!dataUrl) return;
+    reader.onload = async (ev) => {
+      const rawDataUrl = ev.target?.result as string;
+      if (!rawDataUrl) return;
+      // 压缩图片：最大800px，质量0.8，减少上传体积
+      const dataUrl = await compressImage(rawDataUrl, 800, 0.8);
       setPhotoDataUrl(dataUrl);
       // 进入AI扫描动画步骤
       setStep("scanning");
