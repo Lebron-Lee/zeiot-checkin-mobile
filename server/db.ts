@@ -355,8 +355,17 @@ import { QUIZ_QUESTIONS_200 } from "./quiz_data";
 export async function seedQuizQuestionsIfEmpty() {
   const db = await getDb();
   if (!db) return;
-  const existing = await db.select().from(quizQuestions).limit(1);
-  if (existing.length > 0) return; // 已有题目，不重复插入
+  // 检查题目数量，如果少于预期数量则重新初始化
+  const existing = await db.select({ id: quizQuestions.id }).from(quizQuestions);
+  if (existing.length >= QUIZ_QUESTIONS_200.length) {
+    console.log("[DB] Quiz questions already seeded:", existing.length, "questions");
+    return;
+  }
+  // 题目数量不足，清空旧题目并重新插入
+  if (existing.length > 0) {
+    await db.delete(quizQuestions);
+    console.log("[DB] Cleared old quiz questions:", existing.length, "questions");
+  }
   // 分批插入，避免单次插入过多
   const batchSize = 50;
   for (let i = 0; i < QUIZ_QUESTIONS_200.length; i += batchSize) {
