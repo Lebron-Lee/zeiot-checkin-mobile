@@ -29,6 +29,13 @@
       "when": 1772162533177,
       "tag": "0003_ancient_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1772245518965,
+      "tag": "0004_large_arclight",
+      "breakpoints": true
     }
   ]
 }

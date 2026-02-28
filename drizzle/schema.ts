@@ -67,9 +67,9 @@ export const quizQuestions = mysqlTable("quiz_questions", {
   explanation: text("explanation"),
   reward: int("reward").default(0), // 奖励积分
   isActive: boolean("isActive").default(true),
+  difficulty: varchar("difficulty", { length: 10 }).default("normal"), // 'easy' | 'normal'
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
-
 export type QuizQuestion = typeof quizQuestions.$inferSelect;
 
 // 用户答题记录表

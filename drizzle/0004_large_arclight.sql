@@ -1,0 +1,1 @@
+ALTER TABLE `quiz_questions` ADD `difficulty` varchar(10) DEFAULT 'normal';

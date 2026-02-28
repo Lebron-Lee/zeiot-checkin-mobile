@@ -601,8 +601,9 @@ export default function BigScreen() {
     if (msg.type === "NEW_CHECKIN" && msg.data) {
       const d = msg.data as CheckinRecord;
       setCheckins(prev => {
+        // 按 id 替换（更新头像/信息），不存在则追加
         const exists = prev.find(c => c.id === d.id);
-        if (exists) return prev;
+        if (exists) return prev.map(c => c.id === d.id ? d : c);
         return [...prev, d];
       });
       // 新签到时，先移除同名旧记录，再将新记录插入顶部
@@ -703,15 +704,14 @@ export default function BigScreen() {
               <span className="text-yellow-400/70 text-xs">{checkinCount}/{totalSeats}</span>
             </div>
             {/* 5列网格，每格包含头像+名字 */}
-            <div className="grid grid-cols-5 gap-2 flex-1">
+            <div className="grid grid-cols-5 gap-2 flex-1 content-start">
               {gridCells.map((cell, i) => (
                 <motion.div
                   key={i}
-                  className="flex flex-col items-center justify-start rounded-xl overflow-hidden relative"
+                  className="relative aspect-square rounded-xl overflow-hidden"
                   style={{
                     background: cell ? "rgba(139,26,26,0.15)" : "rgba(139,26,26,0.3)",
                     border: cell ? "1px solid rgba(255,215,0,0.5)" : "1px solid rgba(255,215,0,0.12)",
-                    padding: cell ? "0" : "0",
                   }}
                   initial={cell ? { scale: 0, opacity: 0 } : {}}
                   animate={cell ? { scale: 1, opacity: 1 } : {}}
@@ -719,20 +719,24 @@ export default function BigScreen() {
                 >
                   {cell ? (
                     <>
-                      {/* 头像区域：占大部分高度 */}
-                      <div className="w-full aspect-square overflow-hidden flex-shrink-0">
-                        {cell.avatarUrl ? (
-                          <img src={cell.avatarUrl} alt={cell.userName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center"
-                            style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
-                            <span className="text-white font-bold text-lg">{cell.userName.slice(0, 1)}</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* 名字标签 */}
-                      <div className="w-full px-1 py-0.5 text-center flex-shrink-0"
-                        style={{ background: "rgba(0,0,0,0.55)" }}>
+                      {/* 头像平铺整个方形区域 */}
+                      {cell.avatarUrl ? (
+                        <img
+                          src={cell.avatarUrl}
+                          alt={cell.userName}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center"
+                          style={{ background: "linear-gradient(135deg, #8b1a1a, #c0392b)" }}>
+                          <span className="text-white font-bold text-xl">{cell.userName.slice(0, 1)}</span>
+                        </div>
+                      )}
+                      {/* 名字标签：绝对定位在底部 */}
+                      <div
+                        className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-center"
+                        style={{ background: "rgba(0,0,0,0.6)" }}
+                      >
                         <span className="text-white text-[10px] font-medium leading-tight block truncate">
                           {cell.userName}
                         </span>
@@ -747,7 +751,7 @@ export default function BigScreen() {
                       />
                     </>
                   ) : (
-                    <div className="w-full aspect-square flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center">
                       <span className="text-white/20 text-xs font-mono">{i + 1}</span>
                     </div>
                   )}
